@@ -1,7 +1,7 @@
 """Intelligence and recommendation endpoints leveraging LLM workflows."""
 from fastapi import APIRouter
 
-from ..schemas.intelligence import (
+from ...schemas.intelligence import (
     CampaignRecommendationRequest,
     CampaignRecommendationResponse,
     InsightSummaryRequest,

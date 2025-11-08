@@ -1,7 +1,7 @@
 """Endpoints for data ingestion orchestration."""
 from fastapi import APIRouter
 
-from ..schemas.ingestion import (
+from ...schemas.ingestion import (
     CsvIngestionRequest,
     CsvIngestionResponse,
     SourceRegistrationRequest,

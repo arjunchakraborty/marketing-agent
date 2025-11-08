@@ -1,7 +1,7 @@
 """Analytics endpoints for KPI, cohort, and anomaly insights."""
 from fastapi import APIRouter
 
-from ..schemas.analytics import (
+from ...schemas.analytics import (
     CohortAnalysisRequest,
     CohortAnalysisResponse,
     KpiQueryRequest,

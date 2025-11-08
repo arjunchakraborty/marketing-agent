@@ -1,7 +1,7 @@
 """Health and readiness endpoints."""
 from fastapi import APIRouter
 
-from ..schemas.system import HealthResponse
+from ...schemas.system import HealthResponse
 
 router = APIRouter()
 
