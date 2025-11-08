@@ -1,30 +1,91 @@
-Marketing Agent Architecture Plan
-Scope
-Full-stack solution: Next.js UI + FastAPI backend orchestrating marketing intelligence workflows.
-Data ingestion pipeline for Shopify marketing/sales exports and APIs, TripleWhale-style data sync, and direct CSV imports from the provided Avalon_Sunshine datasets (acquisition, behavior, customers, marketing, sales, BE Design Co.).
-Analytics layer mirroring TripleWhale capabilities: prompt-to-SQL exploration, cohort/flow analysis, product performance surfaces, inventory alerts, customizable insight widgets, and extensible plugin architecture for new data sources.
-Recommendation engine to generate campaign strategies and creative briefs for static/motion assets, re-using report templates inspired by the provided workflows (email/SMS strategy briefs, visual analysis buckets, daily calendars) and incorporating predictive uplift/forecast models.
-Social media integration layer covering Meta, LinkedIn, TikTok, and Twitter/X posting workflows with campaign calendar handoff, automated asset QA against brand guidelines, approval flows, and rollback guardrails.
-Native support for A2A and MCP-AGUI protocols across agent orchestration and UI embedding, with adapter layer prepared for additional AI standards (OpenAI Realtime, LangChain ReAct spec, Vercel AI SDK) pending confirmation.
-Secure workspace management with Google Sign-In, user provisioning, and role-based access control across data, analytics, and publishing features.
-Approach
-Backend foundation in backend/ for FastAPI services, analytics modules, TripleWhale-compatible schema sync, predictive modeling, CSV ingestion jobs referencing the Avalon_Sunshine sources, and Google OAuth-based identity service.
-Frontend workspace in web/ using Next.js for dashboards, SQL-to-chart exploration, experiment planner, and campaign builders styled after TripleWhale UI patterns; expose MCP-AGUI endpoints for UI interoperability and integrate Google login flows.
-Shared schema/contracts via OpenAPI + typed clients; persistent storage with PostgreSQL + SQLModel/SQLAlchemy; data lake staging for CSV ingestion; queue/orchestration for automations using A2A messaging.
-Modular agent workflow combining rule-based analytics, vector search, LLM planner-executor flows, compliance checks, and protocol adapters; adopt attachment-inspired prompt structures for consistent outputs.
-Milestones
-Define project scaffolding, core data contracts (Shopify/TripleWhale/Avalon CSV schemas), plugin interfaces, prompt/report template library, and identity architecture (Google OAuth + RBAC) with baseline A2A/MCP-AGUI protocol contracts.
-Implement ingestion and normalization pipelines for Shopify API, TripleWhale datasets, and batch CSV uploads from Avalon_Sunshine folders with protocol-aware event emission and user access controls.
-Deliver analytics & predictive APIs for KPI rollups, cohort/anomaly detection, prompt-to-SQL execution, product/inventory insights, and forecasting; expose them via A2A actions, MCP-AGUI views, and secured user roles.
-Build marketing insight dashboards, experiment planner, and recommendation flows using TripleWhale-inspired modules (email/SMS performance, product top lists, inventory alerts, customer segments) with real-time A2A updates and Google-authenticated collaboration.
-Integrate creative brief generator for static/motion content with brand guideline repository, automated asset QA, protocol-driven collaboration/approval workflows, and role-aware access.
-Enable social publishing automations with secure credential vaulting, approval flows, guardrails, rollback mechanisms, adapters for additional AI standards, and user-specific permissions.
-Implementation Todos
-setup-foundation: Scaffold FastAPI backend, Next.js frontend, shared env/config, Postgres containers, plugin interfaces, base A2A/MCP-AGUI contracts, and Google OAuth authentication.
-data-ingestion: Implement Shopify API, TripleWhale connectors, and Avalon_Sunshine CSV ingestion + normalization jobs into unified schemas with A2A event publishing and permission scoping.
-analytics-engine: Develop KPI computations, cohort/anomaly detection, prompt-to-SQL execution endpoints, product/inventory/customer insight views, forecasting models, reusable metric widgets, and A2A/MCP-AGUI exposure layers respecting RBAC.
-intelligence-layer: Integrate LLM workflow for pattern summaries, campaign recommendations, visual analyses, experiment planning, and daily calendar generation using TripleWhale-style templates, backed by protocol adapters and user context.
-frontend-experience: Implement dashboards, SQL explorer, experiment planner, campaign builder UX, and report templating in Next.js mirroring TripleWhale modules with collaboration features, Google-authenticated sessions, and MCP-AGUI compatibility.
-social-integrations: Build connectors for Meta, LinkedIn, TikTok, and Twitter/X for campaign publishing with approval flows, asset QA, guardrails, rollback controls, adapters for additional AI protocols, and permission-aware access.
-qa-devops: Establish automated tests, local orchestration, CI/CD, monitoring/logging, compliance checks for automations, identity/protocol conformance testing, and incident response playbooks.
-# marketing-agent
+# Marketing Agent
+
+Full-stack marketing intelligence platform combining a FastAPI backend and a Next.js frontend. The solution mirrors TripleWhale-style analytics while embracing the agent protocols outlined in `agent-spec.md` (A2A, MCP-AGUI, OpenAI Realtime adapters) and prepares the groundwork for data ingestion, analytics, and automated campaign orchestration.
+
+## Project Structure
+
+```
+backend/    FastAPI services, schemas, and workflow scaffolding
+web/        Next.js analytics and orchestration dashboard
+agent-spec.md      Product and architecture blueprint used to drive implementation
+strategy-agent-spec.md  Supplemental strategy guidance for future milestones
+```
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.11+
+- Node.js 20+
+- npm (bundled with Node.js)
+- PostgreSQL (local or container) if you plan to wire up persistence
+
+### Backend Setup
+
+```bash
+cd /Users/kerrief/projects/marketing-agent/backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .[dev]
+uvicorn app.main:app --reload
+```
+
+Key endpoints (stubs today):
+
+- `GET /api/v1/health` – service health metadata
+- `POST /api/v1/ingestion/sources` – register data sources
+- `POST /api/v1/ingestion/csv` – submit CSV ingestion jobs
+- `POST /api/v1/analytics/kpi` – placeholder KPI aggregates
+- `POST /api/v1/analytics/cohort` – placeholder cohort analysis
+- `POST /api/v1/intelligence/insights` – stubbed narrative summary
+- `POST /api/v1/intelligence/campaigns` – placeholder campaign recommendations
+
+### Frontend Setup
+
+```bash
+cd /Users/kerrief/projects/marketing-agent/web
+npm install
+npm run dev
+```
+
+Navigate to `http://localhost:3000` to explore the TripleWhale-inspired control center with:
+
+- Metric tiles for revenue, AOV, ROAS, and channel engagement
+- Prompt-to-SQL exploration canvas with generated SQL preview
+- Cohort performance table and experiment planner backlog
+- Campaign recommendation board and inventory alert feed
+- Protocol readiness status and upcoming integration callouts
+
+## Development Roadmap
+
+The `agent-spec.md` document captures the full roadmap. Immediate focus areas:
+
+1. **Data Ingestion** – Shopify API sync, CSV normalization jobs, event streaming via A2A.
+2. **Analytics Engine** – KPI rollups, cohort/anomaly detection, prompt-to-SQL execution, forecasting.
+3. **Intelligence Layer** – LLM-driven summaries, campaign plans, creative brief generation, protocol adapters.
+4. **Frontend Experience** – Real APIs for dashboards, SQL explorer execution, collaborative workflows.
+5. **Integrations & Guardrails** – Klaviyo publishing, social platform connectors, asset QA, approval flows.
+6. **QA & DevOps** – Automated tests, CI/CD, monitoring, compliance and protocol conformance suites.
+
+## Testing
+
+```bash
+cd /Users/kerrief/projects/marketing-agent/backend
+pytest
+```
+
+Frontend testing (to be added): `npm run lint` / `npm run test` once test harness is configured.
+
+## Environment & Configuration
+
+Backend configuration lives in `backend/app/core/config.py` using `pydantic-settings`. Override defaults with a `.env` file (database URL, allowed origins, storage buckets, etc.). Frontend environment variables can be added via `.env.local` (e.g., `NEXT_PUBLIC_API_BASE=http://localhost:8000`).
+
+## Contributing & Next Steps
+
+- OpenAPI schemas + typed clients for frontend integration
+- Queue/orchestration layer for ingestion and automation
+- Protocol adapters (A2A, MCP-AGUI, OpenAI Realtime, LangChain ReAct)
+- Creative asset pipeline with brand QA and approval workflows
+- Secure credential vaulting and RBAC across automations
+
+Refer back to `agent-spec.md` for milestone sequencing and ensure new work aligns with the architecture plan.

@@ -1,0 +1,7 @@
+.venv/
+marketing_agent_backend.egg-info/
+
+# Ignore standard virtual environment folders
+venv/
+venv/**
+
