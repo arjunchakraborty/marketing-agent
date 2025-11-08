@@ -1,0 +1,10 @@
+# Root .gitignore for marketing-agent
+
+# Ignore common virtual environment directories anywhere in the repo
+**/venv/
+**/venv/**
+**/.venv/
+**/.venv/**
+
+# Optional: ignore Python egg-info directories
+**/*.egg-info/
