@@ -30,3 +30,19 @@ export async function fetchCohorts(groupBy: string, metric: string) {
   });
   return handleResponse<{ group_key: string; cohorts: unknown[] }>(response);
 }
+
+export async function generateSqlFromPrompt(prompt: string) {
+  const response = await fetch(`${API_BASE}/v1/analytics/prompt-sql`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt }),
+  });
+  return handleResponse<{
+    table_name: string;
+    business: string;
+    dataset_name: string;
+    sql: string;
+    columns: string[];
+    rows: Record<string, unknown>[];
+  }>(response);
+}

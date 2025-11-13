@@ -13,18 +13,12 @@ def create_app() -> FastAPI:
         description="Marketing intelligence agent backend supporting analytics, ingestion, and automation workflows.",
     )
 
-    # Ensure localhost variants are included for development
-    origins = list(settings.allowed_origins)
-    if "http://localhost:3000" in origins and "http://127.0.0.1:3000" not in origins:
-        origins.append("http://127.0.0.1:3000")
-
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=origins,
+        allow_origins=settings.allowed_origins,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=["*"],
     )
 
     app.include_router(api_router, prefix=settings.api_prefix)

@@ -10,25 +10,12 @@ from .llm_service import LLMService
 class IntelligenceService:
     """Coordinate LLM-backed workflows for insights and campaign planning."""
 
-    def __init__(self, llm_provider: Optional[str] = None) -> None:
+    def __init__(self, llm_provider: str = "openai") -> None:
         self.llm_service: Optional[LLMService] = None
-        provider = llm_provider or settings.default_llm_provider
-        
-        # Try providers in order: specified/configured, then ollama (local), then openai, then anthropic
-        providers_to_try = [provider]
-        if provider != "ollama":
-            providers_to_try.append("ollama")
-        if provider != "openai" and settings.openai_api_key:
-            providers_to_try.append("openai")
-        if provider != "anthropic" and settings.anthropic_api_key:
-            providers_to_try.append("anthropic")
-
-        for p in providers_to_try:
-            try:
-                self.llm_service = LLMService(provider=p)
-                break
-            except Exception:
-                continue
+        try:
+            self.llm_service = LLMService(provider=llm_provider)
+        except Exception:
+            self.llm_service = None
 
     def summarize_insights(self, signals: List[str], context: Dict[str, Any]) -> str:
         """Generate narrative summary from analytics signals using LLM."""
@@ -51,7 +38,7 @@ class IntelligenceService:
                     "channel": "N/A",
                     "objective": "Configure LLM API keys",
                     "expected_uplift": "0%",
-                    "summary": "Please set OPENAI_API_KEY, ANTHROPIC_API_KEY, or ensure Ollama is running at http://localhost:11434",
+                    "summary": "Please set OPENAI_API_KEY or ANTHROPIC_API_KEY in environment",
                     "talking_points": [],
                 }
             ]

@@ -23,11 +23,6 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="", description="OpenAI API key for LLM workflows")
     openai_model: str = Field(default="gpt-4o-mini", description="OpenAI model for prompt-to-SQL and intelligence")
     anthropic_api_key: str = Field(default="", description="Anthropic API key (alternative LLM provider)")
-    ollama_base_url: str = Field(default="http://localhost:11434", description="Ollama API base URL")
-    ollama_model: str = Field(default="llama3.2", description="Ollama model name for prompt-to-SQL and intelligence")
-    ollama_max_tables: int = Field(default=6, description="Maximum number of tables to include in Ollama prompt")
-    ollama_max_columns: int = Field(default=15, description="Maximum number of columns per table to show in Ollama prompt")
-    default_llm_provider: str = Field(default="openai", description="Default LLM provider: openai, anthropic, or ollama")
     use_llm_for_sql: bool = Field(default=True, description="Use LLM for prompt-to-SQL generation")
 
     # Vector Search Configuration
