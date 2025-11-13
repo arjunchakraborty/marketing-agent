@@ -8,18 +8,10 @@
 
 # Optional: ignore Python egg-info directories
 **/*.egg-info/
-backend/app/__pycache__/__init__.cpython-311.pyc
-backend/app/__pycache__/main.cpython-311.pyc
-backend/app/api/__pycache__/__init__.cpython-311.pyc
-backend/app/api/__pycache__/routes.cpython-311.pyc
-backend/app/api/v1/__pycache__/__init__.cpython-311.pyc
-backend/app/api/v1/__pycache__/analytics.cpython-311.pyc
-backend/app/api/v1/__pycache__/health.cpython-311.pyc
-backend/app/api/v1/__pycache__/ingestion.cpython-311.pyc
-backend/app/api/v1/__pycache__/intelligence.cpython-311.pyc
-backend/app/core/__pycache__/config.cpython-311.pyc
-backend/app/schemas/__pycache__/analytics.cpython-311.pyc
-backend/app/schemas/__pycache__/ingestion.cpython-311.pyc
-backend/app/schemas/__pycache__/intelligence.cpython-311.pyc
-backend/app/schemas/__pycache__/system.cpython-311.pyc
-backend/tests/__pycache__/test_health.cpython-311-pytest-8.4.2.pyc
+
+# Local database files
+backend/storage/
+backend/app/api/v1/__pycache__/**
+backend/.env
+.gitignore
+.vscode/settings.json

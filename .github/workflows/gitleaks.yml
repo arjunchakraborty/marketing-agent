@@ -1,0 +1,34 @@
+name: Secret scanning (gitleaks)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  gitleaks-scan:
+    name: Run gitleaks secret scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: zricethezav/gitleaks-action@v8
+        with:
+          # run detect over the working tree and produce a JSON report
+          args: detect --source=. --report-path=gitleaks-report.json --report-format=json --redact
+        env:
+          # allow the action to access the repo (used by some gitleaks rules)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload gitleaks report
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
