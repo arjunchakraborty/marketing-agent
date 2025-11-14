@@ -12,6 +12,7 @@ import {
   metricTrends,
 } from "@/lib/seedData";
 import { PromptSqlExplorer } from "@/components/dashboard/PromptSqlExplorer";
+import { CampaignStrategyExperiment } from "@/components/dashboard/CampaignStrategyExperiment";
 
 export default function Home() {
   return (
@@ -53,6 +54,10 @@ export default function Home() {
       <section id="experiments" className="mt-10 grid gap-6 lg:grid-cols-[1.2fr_1fr]">
         <ExperimentList experiments={experimentPlans} />
         <CohortTable cohorts={cohortInsights} />
+      </section>
+
+      <section id="campaign-strategy-experiment" className="mt-10">
+        <CampaignStrategyExperiment />
       </section>
 
       <section id="campaigns" className="mt-10">

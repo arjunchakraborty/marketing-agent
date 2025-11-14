@@ -8,6 +8,7 @@ const navigation = [
   { label: "Overview", href: "#overview" },
   { label: "SQL Explorer", href: "#sql-explorer" },
   { label: "Experiment Planner", href: "#experiments" },
+  { label: "Campaign Strategy", href: "#campaign-strategy-experiment" },
   { label: "Campaigns", href: "#campaigns" },
   { label: "Inventory", href: "#inventory" },
 ];

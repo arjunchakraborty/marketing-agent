@@ -13,7 +13,7 @@ interface QueryResult {
 }
 
 const defaultPrompt =
-  "Show ROAS and blended CPA for creator campaigns over the last 14 days, grouped by audience segment";
+  "Show me the top 5 product categories by total sales in the last month.";
 
 export function PromptSqlExplorer() {
   const [prompt, setPrompt] = useState(defaultPrompt);

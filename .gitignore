@@ -6,12 +6,15 @@
 **/.venv/
 **/.venv/**
 
+# Ignore Python cache files (__pycache__ directories)
+**/__pycache__/
+**/__pycache__/**
+
 # Optional: ignore Python egg-info directories
 **/*.egg-info/
 
 # Local database files
 backend/storage/
-backend/app/api/v1/__pycache__/**
 backend/.env
 .gitignore
 .vscode/settings.json
