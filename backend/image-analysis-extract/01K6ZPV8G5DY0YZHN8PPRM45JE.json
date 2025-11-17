@@ -1,0 +1,97 @@
+{
+  "campaign_id": "01K6ZPV8G5DY0YZHN8PPRM45JE",
+  "image_name": "www.klaviyo.com_campaign_01K6ZPV8G5DY0YZHN8PPRM45JE_web-view.png",
+  "image_path": "/Users/a0c1fjt/Downloads/klyaviyo/www.klaviyo.com_campaign_01K6ZPV8G5DY0YZHN8PPRM45JE_web-view.png",
+  "analysis": {
+    "header": {
+      "logo": {
+        "text": "UCO",
+        "color": "orange (vibrant, brand-specific)",
+        "position": "top-center",
+        "tagline": "Unplug. Connect. Outdoors."
+      },
+      "navigation": {
+        "items": [
+          "CAMPING",
+          "BACKYARD & PATIO",
+          "HIKING",
+          "EMERGENCY PREP"
+        ],
+        "layout": "horizontal bar with subtle divider lines",
+        "color_scheme": "dark gray text on light beige background"
+      }
+    },
+    "hero_image": {
+      "description": "Primary action shot of hands using knife to cut into container (orange bowl), with blue container and condiment bottles in an outdoor setting",
+      "elements": [
+        "Hands (wearing patterned shirt + jeans)",
+        "Blue container (side view)",
+        "Condiment bottles (oil, salt)",
+        "Orange container (bowl)",
+        "Outdoor setting (natural light, table)"
+      ],
+      "color_scheme": "Warm orange/bottle colors against neutral table surface",
+      "composition": "Medium shot focused on hands/food, shallow depth of field"
+    },
+    "call_to_action_button": {
+      "text": "GRAB YOUR NEW CHEF KNIFE",
+      "color": "Orange background with white text",
+      "position": "Centered below bullet point section",
+      "design": "Rounded corners, bold typography, high contrast for readability"
+    },
+    "product_images": [
+      {
+        "description": "Close-up of knife in use",
+        "elements": [
+          "Hands using knife to cut into orange container",
+          "Blue container (side view)",
+          "Condiment bottles (oil, salt)"
+        ],
+        "color_scheme": "Warm orange/bottle colors against neutral table surface",
+        "composition": "Focus on knife blade interaction with food"
+      },
+      {
+        "description": "Knife with prepared meal",
+        "elements": [
+          "UCO knife (blue handle)",
+          "Sliced steak (wooden board)",
+          "Garlic bulb",
+          "Green bell pepper"
+        ],
+        "color_scheme": "Rich wood tones + red/orange meat contrast",
+        "composition": "Flat lay style showing knife as central element"
+      },
+      {
+        "description": "Partial action shot",
+        "elements": [
+          "Hand holding knife handle",
+          "Edge of cutting board",
+          "Blurred background (outdoor setting)"
+        ],
+        "color_scheme": "Blue handle + natural wood",
+        "composition": "Crop-focused, emphasizing grip and blade"
+      }
+    ],
+    "background": {
+      "main_color": "White (clean, minimalist)",
+      "accent_color": "Orange (used for logo, CTA button, and subtle dividers)",
+      "typography": "Dark gray for body text (consistent with navigation)"
+    },
+    "layout_structure": [
+      "Header section (logo + navigation)",
+      "Hero image section (large, immersive)",
+      "Text/bullet point section (minimalist spacing)",
+      "CTA button section (prominent centering)",
+      "Product image carousel (three sequential visuals)"
+    ],
+    "design_tone": "Practical, outdoorsy, and approachable—aligning with outdoor gear aesthetics"
+  },
+  "metadata": {
+    "provider": "ollama",
+    "model": "qwen3-vl",
+    "usage": {
+      "eval_tokens": 6321,
+      "prompt_tokens": 2757
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "campaign_id": "01K5W4XBTDNC6E10NPBYFEH9X5",
+  "image_name": "www.klaviyo.com_campaign_01K5W4XBTDNC6E10NPBYFEH9X5_web-view(iPhone 14 Pro Max).png",
+  "image_path": "/Users/a0c1fjt/Downloads/klyaviyo/www.klaviyo.com_campaign_01K5W4XBTDNC6E10NPBYFEH9X5_web-view(iPhone 14 Pro Max).png",
+  "analysis": {
+    "raw_analysis": "{\n  \"email_visual_elements\": {\n    \"header\": {\n      \"logo\": {\n        \"text\": \"UCO\",\n        \"color\": \"orange (vibrant, brand-specific)\",\n        \"position\": \"top-center\",\n        \"tagline\": \"Unplug. Connect. Outdoors.\"\n      },\n      \"navigation\": {\n        \"items\": [\"CAMPING\", \"BACKYARD & PATIO\", \"HIKING\", \"EMERGENCY PREP\"],\n        \"layout\": \"horizontal bar with subtle divider lines\",\n        \"color_scheme\": \"dark gray text on light beige background\"\n      }\n    },\n    \"hero_image\": {\n      \"description\": \"Primary promotional image of a smokeless firepit grill with text 'LAST CHANCE TO SNAG 20% OFF'\",\n      \"elements\": [\n        \"Smokeless firepit grill\",\n        \"Text overlay 'LAST CHANCE TO SNAG 20% OFF'\",\n        \"Outdoor ground setting\"\n      ],\n      \"color_scheme\": \"Metallic silver/grill color with orange text\",\n      \"composition\": \"Medium shot of grill with text overlay\"\n    },\n    \"call_to_action_button\": {\n      \"text\": \"GET A SMOKELESS FIREPIT GRILL\",\n      \"color\": \"Orange background with white text\",\n      \"position\": \"Centered below customer testimonials\",\n      \"design\": \"Rounded corners, bold typography\"\n    },\n    \"product_images\": [\n      {\n        \"description\": \"Video thumbnail of grill in use\",\n        \"elements\": [\n          \"Person grilling\",\n          \"Grill on ground\",\n          \"Natural outdoor setting\"\n        ],\n        \"color_scheme\": \"Outdoor setting colors (green grass, brown ground)\",\n        \"composition\": \"Medium shot of person using grill\"\n      },\n      {\n        \"description\": \"Technical diagram of smokeless technology\",\n        \"elements\": [\n          \"Diagram showing grill's internal structure\",\n          \"Arrows indicating airflow\",\n          \"Pinks highlighting smokeless components\"\n        ],\n        \"color_scheme\": \"Technical blue and pink highlights on white\",\n        \"composition\": \"Flat lay diagram\"\n      }\n    ],\n    \"background\n\n  \"background\": {\n    \"main_color\": \"White\",\n    \"accent_color\": \"Orange\",\n    \"typography\": \"Dark gray for body text\"\n  },\n  \"layout_structure\": [\n    \"Header section\",\n    \"Hero image section\",\n    \"Customer testimonials\",\n    \"CTA button\",\n    \"Video section\",\n    \"How it works section\",\n    \"Technology diagram\"\n  ],\n  \"design_tone\": \"Practical, technical, outdoor-focused—aligning with gear aesthetics\"\n}"
+  },
+  "metadata": {
+    "provider": "ollama",
+    "model": "qwen3-vl",
+    "usage": {
+      "eval_tokens": 5547,
+      "prompt_tokens": 2752
+    }
+  }
+}

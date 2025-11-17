@@ -40,6 +40,25 @@ class ImageAnalysisResult(Base):
     text_content = Column(Text, nullable=True)
     overall_description = Column(Text, nullable=True)
     marketing_relevance = Column(Text, nullable=True)
+    email_features = Column(JSON, nullable=True)  # Detected email features
+    feature_catalog = Column(JSON, nullable=True)  # Cataloged features by category
+    created_at = Column(String, default=lambda: datetime.utcnow().isoformat())
+
+
+class EmailFeatureCatalog(Base):
+    """Catalog of email features detected across campaigns for correlation analysis."""
+    __tablename__ = "email_feature_catalog"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    experiment_run_id = Column(String, nullable=False, index=True)
+    campaign_id = Column(String, nullable=True, index=True)
+    feature_category = Column(String, nullable=False, index=True)  # cta_buttons, promotions, products, etc.
+    feature_type = Column(String, nullable=False)  # Specific feature type
+    feature_description = Column(Text, nullable=True)
+    bbox = Column(JSON, nullable=True)  # Bounding box coordinates
+    confidence = Column(Float, nullable=True)
+    position = Column(String, nullable=True)  # top, middle, bottom, left, right, center
+    mData = Column(JSON, nullable=True)  # Additional feature metadata (colors, text, etc.)
     created_at = Column(String, default=lambda: datetime.utcnow().isoformat())
 
 

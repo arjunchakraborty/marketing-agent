@@ -22,6 +22,12 @@ dependencies = [
     "anthropic>=0.18.0",
     "numpy",
     "scikit-learn",
+    "pillow",
+    "torch",
+    "torchvision",
+    "transformers",
+    "opencv-python-headless",
+    "chromadb",
 ]
 
 [project.optional-dependencies]
