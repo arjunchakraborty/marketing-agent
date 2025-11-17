@@ -152,7 +152,7 @@ LIMIT 20`);
                 rows={8}
                 className="font-mono text-sm"
               />
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Write SQL to query campaigns. The query should return campaign_id, campaign_name, and performance metrics.
                 You can adjust this SQL to refine your analysis.
               </p>
@@ -180,13 +180,13 @@ LIMIT 20`);
               onChange={(e) => setImageDirectory(e.target.value)}
               placeholder="/path/to/campaign/images"
             />
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Path to directory containing campaign images. Campaign IDs should be in filenames (e.g., campaign_01K4QVNYM1QKSK61X7PXR019DF.png).
             </p>
           </div>
 
           {error && (
-            <div className="rounded-md bg-red-50 p-4 text-sm text-red-800">
+            <div className="rounded-md bg-red-50 p-4 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-300">
               {error}
             </div>
           )}
@@ -206,25 +206,25 @@ LIMIT 20`);
           <CardContent className="space-y-4">
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <div className="text-sm text-slate-500">Campaigns Analyzed</div>
-                <div className="text-2xl font-bold">{currentExperiment.campaigns_analyzed}</div>
+                <div className="text-sm text-slate-500 dark:text-slate-400">Campaigns Analyzed</div>
+                <div className="text-2xl font-bold dark:text-slate-100">{currentExperiment.campaigns_analyzed}</div>
               </div>
               <div>
-                <div className="text-sm text-slate-500">Images Analyzed</div>
-                <div className="text-2xl font-bold">{currentExperiment.images_analyzed}</div>
+                <div className="text-sm text-slate-500 dark:text-slate-400">Images Analyzed</div>
+                <div className="text-2xl font-bold dark:text-slate-100">{currentExperiment.images_analyzed}</div>
               </div>
               <div>
-                <div className="text-sm text-slate-500">Visual Elements Found</div>
-                <div className="text-2xl font-bold">{currentExperiment.visual_elements_found}</div>
+                <div className="text-sm text-slate-500 dark:text-slate-400">Visual Elements Found</div>
+                <div className="text-2xl font-bold dark:text-slate-100">{currentExperiment.visual_elements_found}</div>
               </div>
             </div>
 
             {currentExperiment.products_promoted.length > 0 && (
               <div>
-                <div className="text-sm font-semibold text-slate-700 mb-2">Top Products Promoted</div>
+                <div className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Top Products Promoted</div>
                 <div className="flex flex-wrap gap-2">
                   {currentExperiment.products_promoted.slice(0, 10).map((product, idx) => (
-                    <span key={idx} className="rounded-full bg-blue-100 px-3 py-1 text-xs text-blue-800">
+                    <span key={idx} className="rounded-full bg-blue-100 px-3 py-1 text-xs text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
                       {product}
                     </span>
                   ))}
@@ -242,10 +242,10 @@ LIMIT 20`);
                 <TabsContent value="campaigns">
                   <div className="space-y-2 max-h-96 overflow-y-auto">
                     {experimentResults.campaign_analyses.map((campaign, idx) => (
-                      <div key={idx} className="rounded border p-3 text-sm">
-                        <div className="font-semibold">{campaign.campaign_name || campaign.campaign_id}</div>
+                      <div key={idx} className="rounded border border-slate-200 dark:border-slate-700 p-3 text-sm dark:bg-slate-800">
+                        <div className="font-semibold dark:text-slate-100">{campaign.campaign_name || campaign.campaign_id}</div>
                         {campaign.metrics && (
-                          <div className="mt-2 text-xs text-slate-600">
+                          <div className="mt-2 text-xs text-slate-600 dark:text-slate-300">
                             Open Rate: {((campaign.metrics.open_rate || 0) * 100).toFixed(2)}% | 
                             Conversion: {((campaign.metrics.conversion_rate || 0) * 100).toFixed(2)}% |
                             Revenue: ${(campaign.metrics.revenue || 0).toFixed(2)}
@@ -258,13 +258,13 @@ LIMIT 20`);
                 <TabsContent value="images">
                   <div className="space-y-2 max-h-96 overflow-y-auto">
                     {experimentResults.image_analyses.map((image, idx) => (
-                      <div key={idx} className="rounded border p-3 text-sm">
-                        <div className="font-semibold">Campaign: {image.campaign_id || "Unknown"}</div>
-                        <div className="mt-1 text-xs text-slate-600">{image.overall_description}</div>
+                      <div key={idx} className="rounded border border-slate-200 dark:border-slate-700 p-3 text-sm dark:bg-slate-800">
+                        <div className="font-semibold dark:text-slate-100">Campaign: {image.campaign_id || "Unknown"}</div>
+                        <div className="mt-1 text-xs text-slate-600 dark:text-slate-300">{image.overall_description}</div>
                         {image.dominant_colors && image.dominant_colors.length > 0 && (
                           <div className="mt-2 flex gap-1 flex-wrap">
                             {image.dominant_colors.slice(0, 5).map((color, cidx) => (
-                              <span key={cidx} className="rounded px-2 py-1 text-xs bg-slate-100">
+                              <span key={cidx} className="rounded px-2 py-1 text-xs bg-slate-100 dark:bg-slate-700 dark:text-slate-300">
                                 {color}
                               </span>
                             ))}
@@ -277,10 +277,10 @@ LIMIT 20`);
                 <TabsContent value="correlations">
                   <div className="space-y-2 max-h-96 overflow-y-auto">
                     {experimentResults.correlations.map((corr, idx) => (
-                      <div key={idx} className="rounded border p-3 text-sm">
-                        <div className="font-semibold">{corr.element_type}</div>
-                        <div className="mt-1 text-xs text-slate-600">{corr.element_description}</div>
-                        <div className="mt-2 text-xs">
+                      <div key={idx} className="rounded border border-slate-200 dark:border-slate-700 p-3 text-sm dark:bg-slate-800">
+                        <div className="font-semibold dark:text-slate-100">{corr.element_type}</div>
+                        <div className="mt-1 text-xs text-slate-600 dark:text-slate-300">{corr.element_description}</div>
+                        <div className="mt-2 text-xs dark:text-slate-300">
                           <div className="font-semibold">Impact:</div>
                           <div>{corr.performance_impact}</div>
                           <div className="font-semibold mt-2">Recommendation:</div>

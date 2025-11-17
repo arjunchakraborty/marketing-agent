@@ -71,15 +71,15 @@ class ExperimentRunStored(BaseModel):
     """Stored experiment run."""
     id: int
     experiment_run_id: str
-    name: Optional[str]
-    description: Optional[str]
-    sql_query: Optional[str]
+    name: Optional[str] = None
+    description: Optional[str] = None
+    sql_query: Optional[str] = None
     status: str
     config: Optional[Dict] = None
     results_summary: Optional[Dict] = None
-    created_at: str
-    updated_at: str
-    completed_at: Optional[str]
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    completed_at: Optional[str] = None
 
 
 class ExperimentResultsResponse(BaseModel):

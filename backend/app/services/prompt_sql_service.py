@@ -1,6 +1,7 @@
 """Enhanced prompt-to-SQL service with LLM integration."""
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from difflib import get_close_matches
@@ -21,6 +22,9 @@ def _normalize(text_value: str) -> str:
 
 class PromptToSqlService:
     """Generate SQL statements from natural language prompts using LLM or heuristics."""
+
+    # Class-level cache shared across all instances
+    _sql_cache: Dict[str, Dict[str, object]] = {}
 
     def __init__(self, db_engine: Optional[Engine] = None, use_llm: Optional[bool] = None) -> None:
         self.engine = db_engine or engine
@@ -44,6 +48,12 @@ class PromptToSqlService:
                     continue
             if not self.llm_service:
                 self.use_llm = False
+
+    def _get_cache_key(self, prompt: str) -> str:
+        """Generate a cache key from the prompt."""
+        # Normalize prompt (lowercase, strip whitespace) for consistent caching
+        normalized_prompt = prompt.lower().strip()
+        return hashlib.sha256(normalized_prompt.encode()).hexdigest()
 
     def _load_registry(self) -> List[Dict[str, str]]:
         query = text(
@@ -95,7 +105,19 @@ class PromptToSqlService:
         order_clause = f' ORDER BY "{order_column}" DESC' if order_column else ""
         return f"SELECT * FROM {quoted_table}{order_clause} LIMIT 50;"
 
+    def generate_sql(self, prompt: str) -> Dict[str, str]:
+        """Generate SQL from prompt without executing it. Returns dict with 'sql' key."""
+        datasets = self._load_registry()
+        if not datasets:
+            raise ValueError("No datasets have been ingested yet.")
+
+        if self.use_llm and self.llm_service:
+            return self._generate_sql_llm(prompt, datasets)
+        else:
+            return self._generate_sql_heuristic(prompt, datasets)
+
     def execute_prompt(self, prompt: str) -> Dict[str, object]:
+        """Execute prompt and return full results including data rows."""
         datasets = self._load_registry()
         if not datasets:
             raise ValueError("No datasets have been ingested yet.")
@@ -105,8 +127,99 @@ class PromptToSqlService:
         else:
             return self._execute_prompt_heuristic(prompt, datasets)
 
+    def _generate_sql_llm(self, prompt: str, datasets: List[Dict[str, str]]) -> Dict[str, str]:
+        """Generate SQL using LLM without executing it. Uses cache when available."""
+        # Check cache first
+        cache_key = self._get_cache_key(prompt)
+        if cache_key in self._sql_cache:
+            cached_result = self._sql_cache[cache_key]
+            return {
+                "sql": cached_result.get("sql", ""),
+                "cached": True,
+            }
+
+        # Generate SQL using LLM (cache miss)
+        sample_rows = []
+        try:
+            first_table = datasets[0]
+            sample_query = text(f'SELECT * FROM "{first_table["table_name"]}" LIMIT 3')
+            with self.engine.begin() as connection:
+                result = connection.execute(sample_query)
+                sample_rows = [dict(row._mapping) for row in result]
+        except Exception:
+            pass
+
+        # Pass sample_rows to help Ollama understand data structure better
+        llm_result = self.llm_service.generate_sql(prompt, datasets, sample_rows)
+        sql = llm_result["sql"]
+
+        # Validate SQL safety
+        if not self._is_safe_sql(sql):
+            raise ValueError("Generated SQL contains unsafe operations")
+
+        # Determine which table was used
+        table_info = self._extract_table_from_sql(sql, datasets)
+
+        # Cache the result
+        self._sql_cache[cache_key] = {
+            "table_name": table_info.get("table_name", ""),
+            "business": table_info.get("business", ""),
+            "dataset_name": table_info.get("dataset_name", ""),
+            "sql": sql,
+            "columns": table_info.get("columns", []),
+            "generated_by": llm_result.get("provider", "llm"),
+            "model": llm_result.get("model", ""),
+        }
+
+        return {
+            "sql": sql,
+            "cached": False,
+        }
+
+    def _generate_sql_heuristic(self, prompt: str, datasets: List[Dict[str, str]]) -> Dict[str, str]:
+        """Generate SQL using heuristic matching without executing it."""
+        dataset = self._select_dataset(prompt, datasets)
+        sql = self._build_query(dataset)
+        return {"sql": sql, "cached": False}
+
     def _execute_prompt_llm(self, prompt: str, datasets: List[Dict[str, str]]) -> Dict[str, object]:
         """Execute prompt using LLM for SQL generation."""
+        # Check cache first
+        cache_key = self._get_cache_key(prompt)
+        if cache_key in self._sql_cache:
+            cached_result = self._sql_cache[cache_key]
+            # Re-execute the cached SQL to get fresh data (since data may have changed)
+            sql = cached_result.get("sql", "")
+            table_info = {
+                "table_name": cached_result.get("table_name", ""),
+                "business": cached_result.get("business", ""),
+                "dataset_name": cached_result.get("dataset_name", ""),
+                "columns": cached_result.get("columns", []),
+            }
+            
+            # Execute cached SQL to get fresh results
+            try:
+                with self.engine.begin() as connection:
+                    result = connection.execute(text(sql))
+                    rows = [dict(row._mapping) for row in result]
+                
+                # Return cached metadata with fresh data
+                return {
+                    "table_name": table_info.get("table_name", ""),
+                    "business": table_info.get("business", ""),
+                    "dataset_name": table_info.get("dataset_name", ""),
+                    "sql": sql,
+                    "columns": list(rows[0].keys()) if rows else [],
+                    "rows": rows,
+                    "generated_by": cached_result.get("generated_by", "llm"),
+                    "model": cached_result.get("model", ""),
+                    "cached": True,
+                }
+            except Exception:
+                # If cached SQL fails (e.g., schema changed), fall through to regenerate
+                pass
+
+        # Generate SQL using LLM (cache miss or cache invalid)
         sample_rows = []
         try:
             first_table = datasets[0]
@@ -145,7 +258,7 @@ class PromptToSqlService:
                     )
             raise ValueError(f"SQL execution failed: {error_msg}")
 
-        return {
+        result = {
             "table_name": table_info.get("table_name", ""),
             "business": table_info.get("business", ""),
             "dataset_name": table_info.get("dataset_name", ""),
@@ -154,7 +267,21 @@ class PromptToSqlService:
             "rows": rows,
             "generated_by": llm_result.get("provider", "llm"),
             "model": llm_result.get("model", ""),
+            "cached": False,
         }
+
+        # Cache the result (store metadata, not the rows since data changes)
+        self._sql_cache[cache_key] = {
+            "table_name": result["table_name"],
+            "business": result["business"],
+            "dataset_name": result["dataset_name"],
+            "sql": sql,
+            "columns": result["columns"],
+            "generated_by": result["generated_by"],
+            "model": result["model"],
+        }
+
+        return result
 
     def _execute_prompt_heuristic(self, prompt: str, datasets: List[Dict[str, str]]) -> Dict[str, object]:
         """Execute prompt using heuristic matching (fallback)."""

@@ -18,3 +18,4 @@ backend/storage/
 backend/.env
 .gitignore
 .vscode/settings.json
+.DS_Store

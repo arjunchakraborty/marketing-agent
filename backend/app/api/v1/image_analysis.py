@@ -5,6 +5,10 @@ from typing import Optional
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
+from ...schemas.email_features import (
+    EmailFeatureDetectionRequest,
+    EmailFeatureDetectionResponse,
+)
 from ...schemas.image_analysis import (
     CampaignImageBatchRequest,
     CampaignImageBatchResponse,
@@ -13,10 +17,13 @@ from ...schemas.image_analysis import (
     VisualElementCorrelationRequest,
     VisualElementCorrelationResponse,
 )
+from ...services.bulk_image_analysis_service import analyze_all_images_in_directory
+from ...services.email_feature_detector import EmailFeatureDetector
 from ...services.image_analysis_service import ImageAnalysisService
 
 router = APIRouter()
 image_analysis_service = ImageAnalysisService()
+feature_detector = EmailFeatureDetector()
 
 
 @router.post("/analyze", response_model=ImageAnalysisResponse, summary="Analyze an image for visual elements")
@@ -161,4 +168,135 @@ async def analyze_campaign_images_batch(payload: CampaignImageBatchRequest) -> C
         analyses=[],
         total_analyzed=0,
     )
+
+
+@router.post(
+    "/detect-features",
+    response_model=EmailFeatureDetectionResponse,
+    summary="Detect and catalog email features",
+)
+async def detect_email_features(payload: EmailFeatureDetectionRequest) -> EmailFeatureDetectionResponse:
+    """
+    Detect key email features (CTAs, promotions, products, etc.).
+    Features are cataloged by category for correlation with campaign performance.
+    Note: Feature detection is currently disabled and returns empty results.
+    """
+    try:
+        result = feature_detector.detect_features(
+            image_url=payload.image_url,
+            image_base64=payload.image_base64,
+            image_path=payload.image_path,
+            custom_prompts=payload.custom_prompts,
+            campaign_id=payload.campaign_id,
+        )
+
+        from ...schemas.email_features import EmailFeature, FeatureCatalog
+
+        # Convert features to schema format
+        features = []
+        for f in result.get("features", []):
+            from ...schemas.email_features import BoundingBox
+
+            bbox = None
+            if f.get("bbox"):
+                bbox_data = f["bbox"]
+                if isinstance(bbox_data, dict):
+                    bbox = BoundingBox(
+                        x_min=bbox_data.get("x_min", 0),
+                        y_min=bbox_data.get("y_min", 0),
+                        x_max=bbox_data.get("x_max", 0),
+                        y_max=bbox_data.get("y_max", 0),
+                        width=bbox_data.get("width"),
+                        height=bbox_data.get("height"),
+                    )
+
+            features.append(
+                EmailFeature(
+                    feature_type=f.get("feature_type", "unknown"),
+                    feature_category=f.get("feature_category", "content"),
+                    confidence=f.get("confidence", 0.0),
+                    bbox=bbox,
+                    position=f.get("position"),
+                    text_content=f.get("text_content"),
+                    color=f.get("color"),
+                    metadata=f.get("metadata"),
+                )
+            )
+
+        # Convert catalog - features in catalog are already dictionaries, convert them properly
+        catalog_data = result.get("feature_catalog", {})
+        
+        def convert_feature_dict(f: dict) -> EmailFeature:
+            """Convert feature dictionary to EmailFeature schema."""
+            bbox = None
+            if f.get("bbox"):
+                bbox_data = f["bbox"]
+                if isinstance(bbox_data, dict):
+                    bbox = BoundingBox(
+                        x_min=bbox_data.get("x_min", 0),
+                        y_min=bbox_data.get("y_min", 0),
+                        x_max=bbox_data.get("x_max", 0),
+                        y_max=bbox_data.get("y_max", 0),
+                        width=bbox_data.get("width"),
+                        height=bbox_data.get("height"),
+                    )
+            
+            return EmailFeature(
+                feature_type=f.get("feature_type", "unknown"),
+                feature_category=f.get("feature_category", "content"),
+                confidence=f.get("confidence", 0.0),
+                bbox=bbox,
+                position=f.get("position"),
+                text_content=f.get("text_content"),
+                color=f.get("color"),
+                metadata=f.get("metadata"),
+            )
+        
+        catalog = FeatureCatalog(
+            cta_buttons=[convert_feature_dict(f) for f in catalog_data.get("cta_buttons", [])],
+            promotions=[convert_feature_dict(f) for f in catalog_data.get("promotions", [])],
+            products=[convert_feature_dict(f) for f in catalog_data.get("products", [])],
+            content=[convert_feature_dict(f) for f in catalog_data.get("content", [])],
+            branding=[convert_feature_dict(f) for f in catalog_data.get("branding", [])],
+            social_proof=[convert_feature_dict(f) for f in catalog_data.get("social_proof", [])],
+            urgency=[convert_feature_dict(f) for f in catalog_data.get("urgency", [])],
+            structure=[convert_feature_dict(f) for f in catalog_data.get("structure", [])],
+            summary=catalog_data.get("summary", {}),
+        )
+
+        return EmailFeatureDetectionResponse(
+            campaign_id=payload.campaign_id,
+            features=features,
+            feature_catalog=catalog,
+            total_features_detected=result.get("total_features_detected", 0),
+            error=result.get("error"),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Feature detection failed: {str(e)}")
+
+
+@router.post("/bulk-analyze", summary="Bulk analyze all images in a directory")
+async def bulk_analyze_images(
+    directory_path: str,
+    experiment_run_id: Optional[str] = None,
+    skip_existing: bool = True,
+) -> JSONResponse:
+    """
+    Analyze all images in a directory and store results in database.
+    
+    Images are matched to campaigns based on campaign_id extracted from filenames.
+    Results are stored in the database and can be reused in experiments.
+    """
+    try:
+        summary = analyze_all_images_in_directory(
+            directory_path=directory_path,
+            experiment_run_id=experiment_run_id,
+            skip_existing=skip_existing,
+        )
+        
+        return JSONResponse(content=summary)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Bulk analysis failed: {str(e)}")
 

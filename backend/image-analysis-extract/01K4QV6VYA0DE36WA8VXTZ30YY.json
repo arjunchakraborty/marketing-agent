@@ -1,0 +1,95 @@
+{
+  "campaign_id": "01K4QV6VYA0DE36WA8VXTZ30YY",
+  "image_name": "www.klaviyo.com_campaign_01K4QV6VYA0DE36WA8VXTZ30YY_web-view(iPhone 14 Pro Max).png",
+  "image_path": "/Users/a0c1fjt/Downloads/klyaviyo/www.klaviyo.com_campaign_01K4QV6VYA0DE36WA8VXTZ30YY_web-view(iPhone 14 Pro Max).png",
+  "analysis": {
+    "email_visual_elements": {
+      "header": {
+        "logo": {
+          "text": "UCO",
+          "color": "orange (vibrant, brand-specific)",
+          "position": "top-center",
+          "tagline": "Unplug. Connect. Outdoors."
+        },
+        "navigation": {
+          "items": [
+            "CAMPING",
+            "BACKYARD & PATIO",
+            "HIKING",
+            "EMERGENCY PREP"
+          ],
+          "layout": "horizontal bar with subtle divider lines",
+          "color_scheme": "dark gray text on light beige background"
+        }
+      },
+      "hero_image": {
+        "description": "Primary action shot of a person chopping vegetables outdoors",
+        "elements": [
+          "Hands of person (wearing patterned shirt + jeans)",
+          "Green cutting board",
+          "Red onion slices",
+          "Tomato (whole)",
+          "Lettuce (bunch)",
+          "Outdoor setting (grass, chair, natural light)"
+        ],
+        "color_scheme": "Natural outdoor palette (earthy tones + vibrant produce colors)",
+        "composition": "Medium shot focused on hands/food, shallow depth of field"
+      },
+      "call_to_action_button": {
+        "text": "LEARN MORE ABOUT CAMP CHEF KNIFE",
+        "color": "Orange background, white text",
+        "position": "Centered below text section",
+        "design": "Rounded corners, subtle shadow"
+      },
+      "product_images": [
+        {
+          "description": "Hand holding tool with containers",
+          "elements": [
+            "Hand holding purple/grey tool",
+            "Blue containers",
+            "Orange bowl"
+          ]
+        },
+        {
+          "description": "Person chopping vegetables (left)",
+          "elements": [
+            "Hands of person (wearing patterned shirt + jeans)",
+            "Tomato",
+            "Onion",
+            "Lettuce"
+          ]
+        },
+        {
+          "description": "Person chopping vegetables (right)",
+          "elements": [
+            "Hands of person (wearing patterned shirt + jeans)",
+            "Tomato",
+            "Onion",
+            "Lettuce"
+          ]
+        }
+      ],
+      "background": {
+        "main_color": "Light gray",
+        "accent_color": "Orange",
+        "typography": "Sans-serif font (e.g., Arial)"
+      },
+      "layout_structure": [
+        "Header",
+        "Hero image",
+        "Text section",
+        "Call to action button",
+        "Product images"
+      ],
+      "design_tone": "Natural, vibrant, and energetic"
+    }
+  },
+  "metadata": {
+    "provider": "ollama",
+    "model": "qwen3-vl",
+    "usage": {
+      "eval_tokens": 7417,
+      "prompt_tokens": 2752
+    }
+  }
+}

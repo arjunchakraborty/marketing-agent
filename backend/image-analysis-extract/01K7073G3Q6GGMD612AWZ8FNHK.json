@@ -1,0 +1,82 @@
+{
+  "campaign_id": "01K7073G3Q6GGMD612AWZ8FNHK",
+  "image_name": "www.klaviyo.com_campaign_01K7073G3Q6GGMD612AWZ8FNHK_web-view(iPhone 14 Pro Max).png",
+  "image_path": "/Users/a0c1fjt/Downloads/klyaviyo/www.klaviyo.com_campaign_01K7073G3Q6GGMD612AWZ8FNHK_web-view(iPhone 14 Pro Max).png",
+  "analysis": {
+    "header": {
+      "logo": {
+        "text": "UCO",
+        "color": "orange (vibrant, brand-specific)",
+        "position": "top-center"
+      },
+      "tagline": "Unplug. Connect. Outdoors."
+    },
+    "navigation": {
+      "items": [
+        "CAMPING",
+        "BACKYARD & PATIO",
+        "HIKING",
+        "EMERGENCY PREP"
+      ],
+      "layout": "horizontal bar with subtle divider lines",
+      "color_scheme": "dark gray text on light beige background"
+    },
+    "hero_image": {
+      "description": "EASY CAMPFIRE STEAK TACOS overlay on an image of sliced steak, UCO knife (blue handle), garlic, and green pepper on a wooden board",
+      "elements": [
+        "Sliced steak (grilled)",
+        "UCO knife (blue handle)",
+        "Garlic clove",
+        "Green pepper (jalapeño)",
+        "Wooden cutting board"
+      ],
+      "color_scheme": "Natural outdoor palette (earthy tones + vibrant produce colors)",
+      "composition": "Medium shot focused on food items, shallow depth of field"
+    },
+    "call_to_action_button": {
+      "text": "SHOP BRAND NEW UCO CAMP CHEF",
+      "color": "Orange background with white text",
+      "position": "Centered below bullet point section",
+      "design": "Rounded corners, bold typography, high contrast for readability"
+    },
+    "product_images": [
+      {
+        "description": "Close-up of knife in use",
+        "elements": [
+          "Sliced steak (grilled)",
+          "UCO knife (blue handle)",
+          "Garlic clove"
+        ],
+        "color_scheme": "Earthy tones (wood) + vibrant steak colors",
+        "composition": "Focus on knife blade interaction with food"
+      },
+      {
+        "description": "Knife with prepared meal",
+        "elements": [
+          "UCO knife (blue handle)",
+          "Sliced steak on wooden board"
+        ],
+        "color_scheme": "Rich wood tones + red/orange meat contrast",
+        "composition": "Flat lay style on cutting board"
+      },
+      {
+        "description": "Partial action shot",
+        "elements": [
+          "Hand holding knife handle (implied)",
+          "Edge of cutting board",
+          "Blurred background (outdoor setting)"
+        ],
+        "color_scheme": "Earthy tones with subtle outdoor ambiance",
+        "composition": "Dynamic partial shot emphasizing use context"
+      }
+    ]
+  },
+  "metadata": {
+    "provider": "ollama",
+    "model": "qwen3-vl",
+    "usage": {
+      "eval_tokens": 6054,
+      "prompt_tokens": 2757
+    }
+  }
+}
