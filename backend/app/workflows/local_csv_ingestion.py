@@ -14,8 +14,7 @@ from sqlalchemy.engine import Engine
 
 from ..core.config import settings
 from ..db.session import engine
-
-DATASET_REGISTRY_TABLE = "dataset_registry"
+from ..models.constants import DATASET_REGISTRY_TABLE
 
 
 @dataclass
@@ -155,6 +154,19 @@ def ingest_directory(
             )
             _record_dataset(work_engine, dataset)
             ingested.append(dataset)
+
+    # Populate cache after ingestion: precompute standard KPIs for each business
+    # Use lazy import to avoid circular dependency
+    if ingested:
+        from ..services.kpi_precomputation_service import KpiPrecomputationService
+        kpi_service = KpiPrecomputationService(db_engine=work_engine)
+        businesses = set(dataset.business for dataset in ingested)
+        for business in businesses:
+            try:
+                kpi_service.precompute_standard_kpis(business=business)
+            except Exception:
+                # Continue even if KPI precomputation fails
+                pass
 
     return ingested
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from datetime import datetime, timedelta
 from difflib import get_close_matches
 from typing import Dict, List, Optional, Sequence
 
@@ -12,7 +13,8 @@ from sqlalchemy.engine import Engine
 
 from ..core.config import settings
 from ..db.session import engine
-from ..workflows.local_csv_ingestion import DATASET_REGISTRY_TABLE
+from ..models.constants import DATASET_REGISTRY_TABLE
+from ..models.kpi_cache import PROMPT_SQL_CACHE_TABLE, ensure_prompt_sql_cache_table
 from .llm_service import LLMService
 
 
@@ -23,11 +25,9 @@ def _normalize(text_value: str) -> str:
 class PromptToSqlService:
     """Generate SQL statements from natural language prompts using LLM or heuristics."""
 
-    # Class-level cache shared across all instances
-    _sql_cache: Dict[str, Dict[str, object]] = {}
-
     def __init__(self, db_engine: Optional[Engine] = None, use_llm: Optional[bool] = None) -> None:
         self.engine = db_engine or engine
+        ensure_prompt_sql_cache_table(self.engine)
         self.use_llm = use_llm if use_llm is not None else settings.use_llm_for_sql
         self.llm_service: Optional[LLMService] = None
         if self.use_llm:
@@ -49,11 +49,161 @@ class PromptToSqlService:
             if not self.llm_service:
                 self.use_llm = False
 
+    def _normalize_prompt_for_cache(self, prompt: str) -> str:
+        """Normalize prompt for consistent caching (case-insensitive, whitespace-normalized)."""
+        # Normalize: lowercase, strip, collapse whitespace
+        normalized = " ".join(prompt.lower().strip().split())
+        return normalized
+
     def _get_cache_key(self, prompt: str) -> str:
-        """Generate a cache key from the prompt."""
-        # Normalize prompt (lowercase, strip whitespace) for consistent caching
-        normalized_prompt = prompt.lower().strip()
+        """Generate a cache key hash from the normalized prompt."""
+        normalized_prompt = self._normalize_prompt_for_cache(prompt)
         return hashlib.sha256(normalized_prompt.encode()).hexdigest()
+
+    def _get_schema_version(self) -> str:
+        """Get current schema version for cache invalidation."""
+        # Simple version based on dataset registry modification
+        try:
+            query = text(f"SELECT COUNT(*) as count FROM {DATASET_REGISTRY_TABLE}")
+            with self.engine.begin() as connection:
+                result = connection.execute(query)
+                row = result.fetchone()
+                count = row[0] if row else 0
+            return f"schema_v{count}"
+        except Exception:
+            return "schema_v0"
+
+    def _get_cached_sql(self, prompt: str) -> Optional[Dict[str, object]]:
+        """Retrieve cached SQL from database."""
+        prompt_hash = self._get_cache_key(prompt)
+        schema_version = self._get_schema_version()
+        now = datetime.utcnow().isoformat()
+
+        query = text(
+            f"""
+            SELECT prompt, sql_query, table_name, business, dataset_name, columns,
+                   schema_version, generated_by, model, expires_at
+            FROM {PROMPT_SQL_CACHE_TABLE}
+            WHERE prompt_hash = :prompt_hash
+            """
+        )
+        with self.engine.begin() as connection:
+            result = connection.execute(query, {"prompt_hash": prompt_hash})
+            row = result.fetchone()
+            if row:
+                cached = dict(row._mapping)
+                # Check if cache entry is expired
+                expires_at = cached.get("expires_at")
+                if expires_at:
+                    try:
+                        expires_dt = datetime.fromisoformat(expires_at)
+                        if datetime.utcnow() > expires_dt:
+                            # Cache expired, delete it
+                            connection.execute(
+                                text(f"DELETE FROM {PROMPT_SQL_CACHE_TABLE} WHERE prompt_hash = :prompt_hash"),
+                                {"prompt_hash": prompt_hash},
+                            )
+                            return None
+                    except Exception:
+                        pass
+
+                # Check schema version mismatch
+                if cached.get("schema_version") != schema_version:
+                    # Schema changed, invalidate cache
+                    connection.execute(
+                        text(f"DELETE FROM {PROMPT_SQL_CACHE_TABLE} WHERE prompt_hash = :prompt_hash"),
+                        {"prompt_hash": prompt_hash},
+                    )
+                    return None
+
+                # Update usage statistics
+                connection.execute(
+                    text(
+                        f"""
+                        UPDATE {PROMPT_SQL_CACHE_TABLE}
+                        SET usage_count = usage_count + 1,
+                            last_used_at = :last_used_at
+                        WHERE prompt_hash = :prompt_hash
+                        """
+                    ),
+                    {"prompt_hash": prompt_hash, "last_used_at": now},
+                )
+
+                # Parse columns JSON if it's a string
+                if isinstance(cached.get("columns"), str):
+                    try:
+                        cached["columns"] = json.loads(cached["columns"])
+                    except Exception:
+                        cached["columns"] = []
+
+                return cached
+        return None
+
+    def _store_cached_sql(
+        self,
+        prompt: str,
+        sql_query: str,
+        table_info: Dict[str, str],
+        generated_by: str = "llm",
+        model: str = "",
+        ttl_seconds: Optional[int] = None,
+    ) -> None:
+        """Store SQL query in database cache."""
+        prompt_hash = self._get_cache_key(prompt)
+        normalized_prompt = self._normalize_prompt_for_cache(prompt)
+        schema_version = self._get_schema_version()
+        now = datetime.utcnow().isoformat()
+
+        expires_at = None
+        if ttl_seconds:
+            expires_at = (datetime.utcnow() + timedelta(seconds=ttl_seconds)).isoformat()
+
+        columns_json = json.dumps(table_info.get("columns", []))
+
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    f"""
+                    INSERT INTO {PROMPT_SQL_CACHE_TABLE} (
+                        prompt_hash, prompt, sql_query, table_name, business, dataset_name,
+                        columns, schema_version, generated_by, model,
+                        created_at, last_used_at, usage_count, ttl_seconds, expires_at
+                    ) VALUES (
+                        :prompt_hash, :prompt, :sql_query, :table_name, :business, :dataset_name,
+                        :columns, :schema_version, :generated_by, :model,
+                        :created_at, :last_used_at, :usage_count, :ttl_seconds, :expires_at
+                    )
+                    ON CONFLICT(prompt_hash) DO UPDATE SET
+                        sql_query=excluded.sql_query,
+                        table_name=excluded.table_name,
+                        business=excluded.business,
+                        dataset_name=excluded.dataset_name,
+                        columns=excluded.columns,
+                        schema_version=excluded.schema_version,
+                        generated_by=excluded.generated_by,
+                        model=excluded.model,
+                        last_used_at=excluded.last_used_at,
+                        expires_at=excluded.expires_at
+                    """
+                ),
+                {
+                    "prompt_hash": prompt_hash,
+                    "prompt": normalized_prompt,
+                    "sql_query": sql_query,
+                    "table_name": table_info.get("table_name", ""),
+                    "business": table_info.get("business", ""),
+                    "dataset_name": table_info.get("dataset_name", ""),
+                    "columns": columns_json,
+                    "schema_version": schema_version,
+                    "generated_by": generated_by,
+                    "model": model,
+                    "created_at": now,
+                    "last_used_at": now,
+                    "usage_count": 1,
+                    "ttl_seconds": ttl_seconds,
+                    "expires_at": expires_at,
+                },
+            )
 
     def _load_registry(self) -> List[Dict[str, str]]:
         query = text(
@@ -128,13 +278,12 @@ class PromptToSqlService:
             return self._execute_prompt_heuristic(prompt, datasets)
 
     def _generate_sql_llm(self, prompt: str, datasets: List[Dict[str, str]]) -> Dict[str, str]:
-        """Generate SQL using LLM without executing it. Uses cache when available."""
-        # Check cache first
-        cache_key = self._get_cache_key(prompt)
-        if cache_key in self._sql_cache:
-            cached_result = self._sql_cache[cache_key]
+        """Generate SQL using LLM without executing it. Uses database cache when available."""
+        # Check database cache first
+        cached = self._get_cached_sql(prompt)
+        if cached:
             return {
-                "sql": cached_result.get("sql", ""),
+                "sql": cached.get("sql_query", ""),
                 "cached": True,
             }
 
@@ -160,16 +309,14 @@ class PromptToSqlService:
         # Determine which table was used
         table_info = self._extract_table_from_sql(sql, datasets)
 
-        # Cache the result
-        self._sql_cache[cache_key] = {
-            "table_name": table_info.get("table_name", ""),
-            "business": table_info.get("business", ""),
-            "dataset_name": table_info.get("dataset_name", ""),
-            "sql": sql,
-            "columns": table_info.get("columns", []),
-            "generated_by": llm_result.get("provider", "llm"),
-            "model": llm_result.get("model", ""),
-        }
+        # Store in database cache
+        self._store_cached_sql(
+            prompt=prompt,
+            sql_query=sql,
+            table_info=table_info,
+            generated_by=llm_result.get("provider", "llm"),
+            model=llm_result.get("model", ""),
+        )
 
         return {
             "sql": sql,
@@ -183,18 +330,17 @@ class PromptToSqlService:
         return {"sql": sql, "cached": False}
 
     def _execute_prompt_llm(self, prompt: str, datasets: List[Dict[str, str]]) -> Dict[str, object]:
-        """Execute prompt using LLM for SQL generation."""
-        # Check cache first
-        cache_key = self._get_cache_key(prompt)
-        if cache_key in self._sql_cache:
-            cached_result = self._sql_cache[cache_key]
+        """Execute prompt using LLM for SQL generation. Uses database cache when available."""
+        # Check database cache first
+        cached = self._get_cached_sql(prompt)
+        if cached:
             # Re-execute the cached SQL to get fresh data (since data may have changed)
-            sql = cached_result.get("sql", "")
+            sql = cached.get("sql_query", "")
             table_info = {
-                "table_name": cached_result.get("table_name", ""),
-                "business": cached_result.get("business", ""),
-                "dataset_name": cached_result.get("dataset_name", ""),
-                "columns": cached_result.get("columns", []),
+                "table_name": cached.get("table_name", ""),
+                "business": cached.get("business", ""),
+                "dataset_name": cached.get("dataset_name", ""),
+                "columns": cached.get("columns", []),
             }
             
             # Execute cached SQL to get fresh results
@@ -211,12 +357,13 @@ class PromptToSqlService:
                     "sql": sql,
                     "columns": list(rows[0].keys()) if rows else [],
                     "rows": rows,
-                    "generated_by": cached_result.get("generated_by", "llm"),
-                    "model": cached_result.get("model", ""),
+                    "generated_by": cached.get("generated_by", "llm"),
+                    "model": cached.get("model", ""),
                     "cached": True,
                 }
             except Exception:
                 # If cached SQL fails (e.g., schema changed), fall through to regenerate
+                # Cache will be invalidated by schema version check on next access
                 pass
 
         # Generate SQL using LLM (cache miss or cache invalid)
@@ -270,16 +417,14 @@ class PromptToSqlService:
             "cached": False,
         }
 
-        # Cache the result (store metadata, not the rows since data changes)
-        self._sql_cache[cache_key] = {
-            "table_name": result["table_name"],
-            "business": result["business"],
-            "dataset_name": result["dataset_name"],
-            "sql": sql,
-            "columns": result["columns"],
-            "generated_by": result["generated_by"],
-            "model": result["model"],
-        }
+        # Store in database cache (store metadata, not the rows since data changes)
+        self._store_cached_sql(
+            prompt=prompt,
+            sql_query=sql,
+            table_info=table_info,
+            generated_by=result["generated_by"],
+            model=result["model"],
+        )
 
         return result
 

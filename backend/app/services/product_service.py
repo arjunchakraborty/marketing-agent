@@ -9,7 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from ..db.session import engine
-from ..workflows.local_csv_ingestion import DATASET_REGISTRY_TABLE
+from ..models.constants import DATASET_REGISTRY_TABLE
 
 
 class ProductService:

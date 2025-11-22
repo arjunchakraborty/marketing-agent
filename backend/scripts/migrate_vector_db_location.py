@@ -46,3 +46,4 @@ if __name__ == "__main__":
     success = migrate_vector_db()
     sys.exit(0 if success else 1)
 
+
