@@ -34,3 +34,12 @@
 - `frontend-experience`: Implement dashboards, SQL explorer, experiment planner, campaign builder UX, and report templating in Next.js mirroring TripleWhale modules with collaboration features and MCP-AGUI compatibility.
 - `social-integrations`: Build connectors for Klaviyo for campaign publishing with approval flows, asset QA, guardrails, rollback controls, and adapters for additional AI protocols.
 - `qa-devops`: Establish automated tests, local orchestration, CI/CD, monitoring/logging, compliance checks for automations, and protocol conformance testing.
+
+# Acceleration and Enhancements
+- workflow processing for data files is to precompute the sql needed for calculate KPIs. And create an API that returns these KPIs to the UI
+    Revenue: 'What is the total revenue for business  in the last 30 days?'
+    AOV: 'What is the average order value (AOV) from all campaigns for business in the 30 days before the last 30 days?',
+    Conversion Rate: 'What is the average conversion rate from all campaigns for business  in the last 30 days?',
+    'Email CTR': 'What is the average email click-through rate (CTR) from all email campaigns in the 30 days before the last 30 days?',
+- In general, all SQL except the one which accepts a SQL prompt should be generated ahead of time and stored in the database
+- Implement caching layer for prompt-to-SQL conversion: store natural language prompt → SQL query mappings in database with hash-based lookup (normalize prompts via case-insensitive, whitespace-normalized hashing). Cache entries should include prompt hash, generated SQL, execution metadata (schema version, timestamp), and usage statistics. Cache population occurs in two phases: (1) initial population during data load/ingestion workflows where common KPI and analysis prompts are pre-generated and cached, (2) incremental population as users interact with the app—when a prompt-to-SQL request is made, check cache first before invoking LLM; if cache miss, generate SQL via LLM and store result in cache for future use. Invalidate cache entries when schema changes or after configurable TTL. This reduces LLM API costs and improves response latency for repeated or similar queries.

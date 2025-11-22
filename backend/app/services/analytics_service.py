@@ -10,7 +10,8 @@ from sqlalchemy.engine import Engine
 
 from ..core.config import settings
 from ..db.session import engine
-from ..workflows.local_csv_ingestion import DATASET_REGISTRY_TABLE
+from ..models.constants import DATASET_REGISTRY_TABLE
+from ..services.kpi_precomputation_service import KpiPrecomputationService
 
 
 class AnalyticsService:
@@ -18,16 +19,26 @@ class AnalyticsService:
 
     def __init__(self, db_engine: Optional[Engine] = None) -> None:
         self.engine = db_engine or engine
+        self.kpi_precomputation_service = KpiPrecomputationService(db_engine=self.engine)
 
     def query_kpis(self, metrics: List[str], filters: Dict[str, str]) -> Dict[str, float]:
-        """Compute real KPI metrics from ingested datasets."""
+        """Compute real KPI metrics from ingested datasets. Uses precomputed SQL when available."""
         results: Dict[str, float] = {}
-
-        # Load available datasets
-        datasets = self._load_available_datasets()
+        business = filters.get("business")
 
         for metric in metrics:
             try:
+                # Try to use precomputed KPI SQL first
+                precomputed_value = self.kpi_precomputation_service.execute_precomputed_kpi(metric, business)
+                if precomputed_value is not None:
+                    results[metric] = precomputed_value
+                    continue
+            except Exception:
+                pass
+
+            # Fallback to dynamic computation if precomputed SQL not available
+            try:
+                datasets = self._load_available_datasets()
                 value = self._compute_metric(metric, datasets, filters)
                 results[metric] = value
             except Exception as e:
@@ -153,3 +164,4 @@ class AnalyticsService:
                 continue
 
         return cohorts
+

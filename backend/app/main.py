@@ -7,6 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api.routes import router as api_router
 from .core.config import settings
+from .models.kpi_cache import ensure_cache_tables
+from .db.session import engine
 
 
 def setup_logging():
@@ -59,6 +61,9 @@ def setup_logging():
 
 
 def create_app() -> FastAPI:
+    # Ensure cache tables exist on startup
+    ensure_cache_tables(engine)
+    
     app = FastAPI(
         title=settings.app_name,
         version=settings.version,

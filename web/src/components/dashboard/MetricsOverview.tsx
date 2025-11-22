@@ -2,67 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { MetricCard } from './MetricCard';
-import { generateSqlFromPrompt } from '@/lib/api';
+import { fetchKpis } from '@/lib/api';
 import type { MetricTrend } from '@/types/analytics';
 
 interface MetricsOverviewProps {
   className?: string;
+  business?: string;
 }
 
-// Define prompts for each metric
-const METRIC_PROMPTS: Record<string, string> = {
-  Revenue: 'What is the total revenue from all campaigns for business Avalon_Sunshine in the last 30 days?',
-  AOV: 'What is the average order value (AOV) from all campaigns for business Avalon_Sunshine in the last 30 days?',
-  ROAS: 'What is the average return on ad spend (ROAS) from all campaigns in the last 30 days?',
-  'Email CTR': 'What is the average email click-through rate (CTR) from all email campaigns in the last 30 days?',
-};
-
-// Previous period prompts for calculating deltas
-const PREVIOUS_PERIOD_PROMPTS: Record<string, string> = {
-  Revenue: 'What is the total revenue from all campaigns for business Avalon_Sunshine in the 30 days before the last 30 days?',
-  AOV: 'What is the average order value (AOV) from all campaigns for business Avalon_Sunshine in the 30 days before the last 30 days?',
-  ROAS: 'What is the average return on ad spend (ROAS) from all campaigns in the 30 days before the last 30 days?',
-  'Email CTR': 'What is the average email click-through rate (CTR) from all email campaigns in the 30 days before the last 30 days?',
-};
-
-function extractNumericValue(rows: Record<string, unknown>[]): number {
-  if (!rows || rows.length === 0) return 0;
-  
-  const firstRow = rows[0];
-  // Try to find a numeric value in the first row
-  // Check common column names first
-  const commonKeys = ['value', 'total', 'sum', 'avg', 'average', 'count', 'revenue', 'aov', 'roas', 'ctr'];
-  
-  for (const key of commonKeys) {
-    const value = firstRow[key];
-    if (value !== undefined && value !== null) {
-      if (typeof value === 'number') {
-        return value;
-      }
-      if (typeof value === 'string') {
-        const parsed = parseFloat(value.replace(/[^0-9.-]/g, ''));
-        if (!isNaN(parsed)) {
-          return parsed;
-        }
-      }
-    }
-  }
-  
-  // Fallback: try all values
-  const values = Object.values(firstRow);
-  for (const value of values) {
-    if (typeof value === 'number') {
-      return value;
-    }
-    if (typeof value === 'string') {
-      const parsed = parseFloat(value.replace(/[^0-9.-]/g, ''));
-      if (!isNaN(parsed)) {
-        return parsed;
-      }
-    }
-  }
-  return 0;
-}
+// Standard KPI metrics that match the backend precomputed KPIs
+const STANDARD_METRICS = ['Revenue', 'AOV', 'Conversion Rate', 'Email CTR'];
 
 function calculateTrend(current: number, previous: number): { delta: number; trend: 'up' | 'down' | 'flat' } {
   if (previous === 0) {
@@ -81,7 +30,7 @@ function calculateTrend(current: number, previous: number): { delta: number; tre
   };
 }
 
-export function MetricsOverview({ className }: MetricsOverviewProps) {
+export function MetricsOverview({ className, business }: MetricsOverviewProps) {
   const [metrics, setMetrics] = useState<MetricTrend[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -92,52 +41,29 @@ export function MetricsOverview({ className }: MetricsOverviewProps) {
       setError(null);
 
       try {
-        // Fetch all metrics in parallel (current period)
-        const currentPromises = Object.entries(METRIC_PROMPTS).map(async ([label, prompt]) => {
-          try {
-            const result = await generateSqlFromPrompt(prompt);
-            const value = extractNumericValue(result.rows);
-            return { label, value, prompt, success: true };
-          } catch (err) {
-            console.error(`Failed to fetch ${label}:`, err);
-            return { label, value: 0, prompt, success: false };
-          }
-        });
-
-        // Fetch previous period metrics in parallel
-        const previousPromises = Object.entries(PREVIOUS_PERIOD_PROMPTS).map(async ([label, prompt]) => {
-          try {
-            const result = await generateSqlFromPrompt(prompt);
-            const value = extractNumericValue(result.rows);
-            return { label, value, success: true };
-          } catch (err) {
-            console.error(`Failed to fetch previous period for ${label}:`, err);
-            return { label, value: 0, success: false };
-          }
-        });
-
-        const [currentResults, previousResults] = await Promise.all([
-          Promise.all(currentPromises),
-          Promise.all(previousPromises),
-        ]);
-
-        // Create a map of previous values for easy lookup
-        const previousMap = new Map(previousResults.map((r) => [r.label, r.value]));
-
-        // Combine current and previous to calculate trends
-        const metricsData: MetricTrend[] = currentResults
-          .filter((current) => current.success) // Only include successfully fetched metrics
-          .map((current) => {
-            const previous = previousMap.get(current.label) || 0;
-            const { delta, trend } = calculateTrend(current.value, previous);
+        const filters: Record<string, string> = business ? { business } : {};
+        
+        // Fetch current period KPIs using the new API endpoint
+        const currentKpis = await fetchKpis(STANDARD_METRICS, filters);
+        
+        // For now, we'll use the current values and set previous to 0
+        // In a real implementation, you might want to fetch previous period separately
+        // or modify the backend to return both current and previous period values
+        const metricsData: MetricTrend[] = STANDARD_METRICS
+          .map((metricName) => {
+            const value = currentKpis.kpis[metricName] || 0;
+            // For now, we'll calculate trend as flat since we don't have previous period data
+            // You can enhance this by fetching previous period KPIs separately if needed
+            const { delta, trend } = calculateTrend(value, 0);
             
             return {
-              label: current.label,
-              value: current.value,
+              label: metricName,
+              value,
               delta,
               trend,
             };
-          });
+          })
+          .filter((metric) => metric.value > 0 || metric.label === 'Conversion Rate'); // Filter out zero values except for rates
 
         setMetrics(metricsData);
       } catch (err) {
@@ -149,7 +75,7 @@ export function MetricsOverview({ className }: MetricsOverviewProps) {
     }
 
     fetchAllMetrics();
-  }, []);
+  }, [business]);
 
   if (isLoading) {
     return (

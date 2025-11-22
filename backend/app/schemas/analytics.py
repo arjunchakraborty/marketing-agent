@@ -50,3 +50,28 @@ class PromptToSqlResponse(BaseModel):
     sql: str
     columns: List[str]
     rows: List[Dict[str, Any]]
+
+
+class PrecomputedKpiItem(BaseModel):
+    kpi_name: str
+    prompt: str
+    sql_query: str
+    business: Optional[str] = None
+    created_at: str
+    updated_at: str
+    last_executed_at: Optional[str] = None
+    execution_count: int
+
+
+class PrecomputedKpiListResponse(BaseModel):
+    kpis: List[PrecomputedKpiItem]
+
+
+class PrecomputeKpiRequest(BaseModel):
+    business: Optional[str] = Field(None, description="Business name to precompute KPIs for")
+    kpi_names: Optional[List[str]] = Field(None, description="Specific KPI names to precompute. If None, precomputes all standard KPIs")
+
+
+class PrecomputeKpiResponse(BaseModel):
+    results: List[Dict[str, Any]]
+    status: str
