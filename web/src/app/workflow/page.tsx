@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
+import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
+import { PageHelp } from "@/components/common/PageHelp";
 import { FileUploader } from "@/components/upload/FileUploader";
 import { ImageUploader } from "@/components/campaigns/ImageUploader";
 import { TargetCampaignBuilder } from "@/components/campaigns/TargetCampaignBuilder";
@@ -100,20 +102,49 @@ export default function WorkflowPage() {
 
   return (
     <AppShell>
+      <Breadcrumbs
+        items={[
+          { label: "Home", href: "/" },
+          { label: "Workflow" },
+        ]}
+      />
+      
       <div className="w-full max-w-6xl mx-auto">
         {/* Workflow Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-slate-100 mb-4">
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-slate-900 dark:text-slate-100 mb-2 md:mb-3">
             Campaign Workflow
           </h1>
-          <p className="text-lg text-slate-600 dark:text-slate-300">
+          <p className="text-sm md:text-base text-slate-600 dark:text-slate-300 mb-4">
             Follow this step-by-step workflow to upload data, analyze campaigns, and create targeted campaigns.
           </p>
+
+          <PageHelp
+            title="Guided Workflow Experience"
+            description="This is a guided, step-by-step experience that walks you through the complete campaign creation process. All steps are integrated here for convenience."
+            whenToUse={[
+              "You're new to the platform and want guidance",
+              "You want to complete the full workflow in one place",
+              "You prefer a structured, step-by-step approach"
+            ]}
+            relatedPages={[
+              { label: "Upload Data (Direct)", href: "/upload" },
+              { label: "Campaign Images (Direct)", href: "/campaigns/images" },
+              { label: "Create Campaign (Direct)", href: "/campaigns/target" },
+              { label: "Workflow Demo", href: "/workflow/demo" }
+            ]}
+          />
+
+          <div className="p-3 md:p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+            <p className="text-xs md:text-sm text-green-800 dark:text-green-200">
+              <strong>✨ Recommended for first-time users:</strong> This workflow guides you through all steps. You can also access each step individually from the sidebar if you prefer.
+            </p>
+          </div>
         </div>
 
         {/* Step Progress Indicator */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
+        <div className="mb-6 md:mb-8">
+          <div className="flex items-center justify-between mb-3 md:mb-4 overflow-x-auto pb-2">
             {steps.map((step, index) => {
               const isActive = step.id === currentStep;
               const isCompleted = index < currentStepIndex;

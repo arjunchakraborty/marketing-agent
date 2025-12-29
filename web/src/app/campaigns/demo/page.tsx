@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { AppShell } from "@/components/layout/AppShell";
+import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
+import { PageHelp } from "@/components/common/PageHelp";
 import Link from "next/link";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:2121/api";
@@ -222,14 +224,38 @@ export default function CampaignDemoPage() {
 
   return (
     <AppShell>
+      <Breadcrumbs
+        items={[
+          { label: "Home", href: "/" },
+          { label: "Campaigns", href: "/campaigns/demo" },
+          { label: "Campaign Demo" },
+        ]}
+      />
+
       <div className="w-full max-w-6xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-slate-100 mb-4">
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-slate-900 dark:text-slate-100 mb-2 md:mb-3">
             Create Campaign with Demo Data
           </h1>
-          <p className="text-lg text-slate-600 dark:text-slate-300 mb-6">
+          <p className="text-sm md:text-base text-slate-600 dark:text-slate-300 mb-4 md:mb-6">
             See how to create a targeted campaign using sample data and segments. Choose from different demo scenarios below.
           </p>
+
+          <PageHelp
+            title="Campaign Demo"
+            description="This page demonstrates the campaign creation process with pre-filled sample data. Perfect for learning how campaigns work without uploading your own data first."
+            whenToUse={[
+              "You want to see how campaign creation works",
+              "You're learning the platform",
+              "You want to test with sample data",
+              "You need examples before creating your own campaign"
+            ]}
+            relatedPages={[
+              { label: "Create Campaign", href: "/campaigns/target" },
+              { label: "Workflow Demo", href: "/workflow/demo" },
+              { label: "Email Preview", href: "/campaigns/email-preview" }
+            ]}
+          />
 
           {/* Demo Campaign Selector */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

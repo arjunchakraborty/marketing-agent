@@ -1,4 +1,6 @@
 import { AppShell } from "@/components/layout/AppShell";
+import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
+import { PageHelp } from "@/components/common/PageHelp";
 import { InventoryAlerts } from "@/components/dashboard/InventoryAlerts";
 import { RecommendationBoard } from "@/components/dashboard/RecommendationBoard";
 import {
@@ -12,8 +14,36 @@ import { ApiConnectionTest } from "@/components/dashboard/ApiConnectionTest";
 export default function Dashboard() {
   return (
     <AppShell>
-      <section id="overview" className="w-full">
-        <div className="mb-6">
+      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Dashboard" }]} />
+      
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-slate-900 dark:text-slate-100 mb-2 md:mb-3">
+          Dashboard
+        </h1>
+        <p className="text-sm md:text-base text-slate-600 dark:text-slate-300 mb-4">
+          Real-time analytics, insights, and campaign performance metrics
+        </p>
+
+        <PageHelp
+          title="Analytics Dashboard"
+          description="Your central hub for viewing KPIs, running SQL queries, analyzing campaign strategies, and getting AI-powered recommendations. All your marketing intelligence in one place."
+          whenToUse={[
+            "You want to see overall performance metrics",
+            "You need to run custom SQL queries on your data",
+            "You want to analyze campaign strategies",
+            "You're looking for campaign recommendations",
+            "You need to check inventory alerts"
+          ]}
+          relatedPages={[
+            { label: "Create Campaign", href: "/campaigns/target" },
+            { label: "Upload Data", href: "/upload" },
+            { label: "Workflow Guide", href: "/workflow" }
+          ]}
+        />
+      </div>
+
+      <section id="overview" className="w-full mb-6 md:mb-8">
+        <div className="mb-4 md:mb-6">
           <ApiConnectionTest />
         </div>
         <MetricsOverview />
