@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
+import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import Link from "next/link";
 
 export default function EmailPreviewPage() {
@@ -355,9 +356,17 @@ export default function EmailPreviewPage() {
 
   return (
     <AppShell>
+      <Breadcrumbs
+        items={[
+          { label: "Home", href: "/" },
+          { label: "Campaigns", href: "/campaigns/demo" },
+          { label: "Email Preview" },
+        ]}
+      />
+
       <div className="w-full max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-slate-100 mb-4">
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-slate-900 dark:text-slate-100 mb-2 md:mb-3">
             Email Preview & Builder
           </h1>
           <p className="text-lg text-slate-600 dark:text-slate-300">

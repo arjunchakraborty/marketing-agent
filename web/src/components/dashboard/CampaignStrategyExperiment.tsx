@@ -360,7 +360,7 @@ LIMIT 20`);
                           )}
                           {image.dominant_colors && image.dominant_colors.length > 0 && (
                             <div className="mt-2 flex gap-1 flex-wrap">
-                              {image.dominant_colors.slice(0, 5).map((color, cidx) => (
+                              {image.dominant_colors.slice(0, 5).map((color: string, cidx: number) => (
                                 <span key={cidx} className="rounded px-2 py-1 text-xs bg-slate-100 dark:bg-slate-700 dark:text-slate-300">
                                   {typeof color === 'string' ? color : JSON.stringify(color)}
                                 </span>
