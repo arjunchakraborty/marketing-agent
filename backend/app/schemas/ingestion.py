@@ -1,6 +1,6 @@
 """Schemas for data ingestion operations."""
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -47,3 +47,11 @@ class CsvIngestionResponse(BaseModel):
     datasets: List[IngestedDatasetSummary] = Field(
         default_factory=list, description="Metadata for ingested datasets"
     )
+
+
+class ZipIngestionResponse(BaseModel):
+    """Response from zip file ingestion."""
+    status: str
+    extracted_path: str
+    processed_at: datetime = Field(default_factory=datetime.utcnow)
+    details: Dict[str, Any] = Field(default_factory=dict, description="Processing details specific to ingestion type")

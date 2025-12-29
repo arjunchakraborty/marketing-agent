@@ -136,6 +136,7 @@ def ingest_directory(
         for category_slug, csv_file in iter_dataset_files(business_dir):
             dataset_slug = _normalize_identifier(csv_file.stem)
             table_name = f"{business_slug}_{category_slug}_{dataset_slug}"
+            print(f"Ingesting {csv_file} into table {table_name}...")
             df = _load_csv(csv_file)
             df["business_name"] = business_name
             df["category"] = category_slug

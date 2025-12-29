@@ -8,12 +8,17 @@ import {
 import { PromptSqlExplorer } from "@/components/dashboard/PromptSqlExplorer";
 import { CampaignStrategyExperiment } from "@/components/dashboard/CampaignStrategyExperiment";
 import { MetricsOverview } from "@/components/dashboard/MetricsOverview";
+import { DataUpload } from "@/components/dashboard/DataUpload";
 
 export default function Home() {
   return (
     <AppShell>
       <section id="overview">
         <MetricsOverview />
+      </section>
+
+      <section id="data-upload" className="mt-10">
+        <DataUpload />
       </section>
 
       <section id="sql-explorer" className="mt-10 grid gap-6 lg:grid-cols-[2fr_1fr]">
@@ -36,7 +41,7 @@ export default function Home() {
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800 transition-colors">
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Next Integrations</h3>
             <ul className="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-300">
-              <li>• Klaviyo publish workflows with asset QA</li>
+              <li>• Campaign data publish workflows with asset QA</li>
               <li>• Social credential vaulting + rollback guardrails</li>
               <li>• Custom plugin marketplace for new data sources</li>
             </ul>

@@ -1,6 +1,6 @@
 """Centralized application configuration and settings management."""
 from functools import lru_cache
-from typing import List, Sequence
+from typing import List, Optional, Sequence
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     # Vector Search Configuration
     enable_vector_search: bool = Field(default=True, description="Enable vector search for semantic discovery")
     vector_db_path: str = Field(default="storage/vectors", description="Path for vector database storage (relative to backend directory)")
+
+    # ComfyUI Configuration
+    comfyui_base_url: str = Field(default="http://localhost:8188", description="ComfyUI API base URL")
+    comfyui_workflow_path: Optional[str] = Field(default=None, description="Path to default ComfyUI workflow JSON file")
+    comfyui_model: str = Field(default="sd_xl_base_1.0.safetensors", description="ComfyUI model name for image generation")
+    comfyui_timeout: int = Field(default=300, description="Timeout in seconds for ComfyUI image generation")
 
     # Logging Configuration
     log_level: str = Field(default="INFO", description="Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL")
