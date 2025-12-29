@@ -1,0 +1,78 @@
+{
+  "campaign_id": "01K846N0G394EPPDFZQWR3BCYV",
+  "image_name": "www.klaviyo.com_campaign_01K846N0G394EPPDFZQWR3BCYV_web-view(iPhone 14 Pro Max).png",
+  "image_path": "/Users/a0c1fjt/Downloads/klyaviyo/www.klaviyo.com_campaign_01K846N0G394EPPDFZQWR3BCYV_web-view(iPhone 14 Pro Max).png",
+  "analysis": {
+    "email_visual_elements": {
+      "header": {
+        "logo": {
+          "text": "UCO",
+          "color": "orange (vibrant, brand-specific)",
+          "position": "top-center",
+          "tagline": "Unplug. Connect. Outdoors."
+        },
+        "navigation": {
+          "items": [
+            "CAMPING",
+            "BACKYARD & PATIO",
+            "HIKING",
+            "EMERGENCY PREP"
+          ],
+          "layout": "horizontal bar with subtle divider lines",
+          "color_scheme": "dark gray text on light beige background"
+        }
+      },
+      "hero_image": {
+        "description": "Primary action shot of a person in an orange puffer jacket holding blue utensils (fork and spoon) with snowflake graphics and 'UCO 2025 HOLIDAY GIFT GUIDE' text overlay",
+        "elements": [
+          "Person in orange puffer jacket",
+          "Blue fork and spoon",
+          "Snowflake graphics",
+          "Text overlay 'UCO 2025 HOLIDAY GIFT GUIDE'"
+        ],
+        "color_scheme": "Orange jacket + blue utensils + white snowflakes (winter holiday palette)",
+        "composition": "Medium shot focused on the person with decorative snowflakes"
+      },
+      "call_to_action_button": {
+        "text": "CHECK OUT THE GIFTS",
+        "color": "Orange background with white text",
+        "position": "Centered below text section",
+        "design": "Solid orange background with white text, rounded corners"
+      },
+      "product_images": [
+        {
+          "description": "Hands handling food items with holiday theme",
+          "elements": [
+            "Hands",
+            "Blue container (with white food)",
+            "Black pan (with white food)",
+            "Snowflake graphics"
+          ],
+          "color_scheme": "Winter palette (white/gray food, blue container, black pan)",
+          "composition": "Top-down view of food preparation"
+        }
+      ],
+      "background": {
+        "main_color": "White (clean, minimalist)",
+        "accent_color": "Orange (used for logo, CTA button, and subtle dividers)",
+        "typography": "Dark gray for body text (consistent with navigation)"
+      },
+      "layout_structure": [
+        "Header section (logo + navigation)",
+        "Hero image section (large, immersive)",
+        "Text/bullet point section",
+        "CTA button section",
+        "Product image section"
+      ],
+      "design_tone": "Festive, outdoorsy, and practical—aligning with holiday gift guide for outdoor enthusiasts"
+    }
+  },
+  "metadata": {
+    "provider": "ollama",
+    "model": "qwen3-vl",
+    "usage": {
+      "eval_tokens": 4419,
+      "prompt_tokens": 2757
+    }
+  }
+}

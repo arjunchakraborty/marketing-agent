@@ -1,0 +1,48 @@
+[
+  {
+    "product_id": "PROD001",
+    "product_name": "Wireless Headphones",
+    "category": "Electronics",
+    "price": 79.99,
+    "stock": 150,
+    "sales_count": 245,
+    "rating": 4.5
+  },
+  {
+    "product_id": "PROD002",
+    "product_name": "Smart Watch",
+    "category": "Electronics",
+    "price": 249.99,
+    "stock": 80,
+    "sales_count": 180,
+    "rating": 4.8
+  },
+  {
+    "product_id": "PROD003",
+    "product_name": "Laptop Stand",
+    "category": "Accessories",
+    "price": 45.00,
+    "stock": 200,
+    "sales_count": 320,
+    "rating": 4.3
+  },
+  {
+    "product_id": "PROD004",
+    "product_name": "USB-C Cable",
+    "category": "Accessories",
+    "price": 12.99,
+    "stock": 500,
+    "sales_count": 890,
+    "rating": 4.2
+  },
+  {
+    "product_id": "PROD005",
+    "product_name": "Wireless Mouse",
+    "category": "Accessories",
+    "price": 29.99,
+    "stock": 300,
+    "sales_count": 450,
+    "rating": 4.6
+  }
+]
+

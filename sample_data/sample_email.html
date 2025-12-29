@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Summer Sale - 50% Off Everything</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background-color: #f4f4f4;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            color: #ffffff;
+            margin: 0;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .header p {
+            color: #ffffff;
+            margin: 10px 0 0 0;
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        .hero-image {
+            width: 100%;
+            max-width: 600px;
+            height: auto;
+            display: block;
+        }
+        .content {
+            padding: 40px 30px;
+            text-align: center;
+        }
+        .content h2 {
+            color: #333333;
+            font-size: 32px;
+            margin: 0 0 20px 0;
+            font-weight: bold;
+        }
+        .content p {
+            color: #666666;
+            font-size: 18px;
+            line-height: 1.6;
+            margin: 0 0 30px 0;
+        }
+        .discount-badge {
+            background-color: #ff6b6b;
+            color: #ffffff;
+            font-size: 48px;
+            font-weight: bold;
+            padding: 20px;
+            border-radius: 10px;
+            display: inline-block;
+            margin: 20px 0;
+        }
+        .cta-button {
+            display: inline-block;
+            background-color: #667eea;
+            color: #ffffff;
+            text-decoration: none;
+            padding: 18px 40px;
+            border-radius: 8px;
+            font-size: 20px;
+            font-weight: bold;
+            margin: 30px 0;
+            transition: background-color 0.3s;
+        }
+        .cta-button:hover {
+            background-color: #5568d3;
+        }
+        .products {
+            background-color: #f8f9fa;
+            padding: 40px 30px;
+        }
+        .products h3 {
+            color: #333333;
+            font-size: 24px;
+            margin: 0 0 30px 0;
+            text-align: center;
+        }
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .product-item {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .product-item img {
+            width: 100%;
+            max-width: 150px;
+            height: auto;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .product-item h4 {
+            color: #333333;
+            font-size: 18px;
+            margin: 0 0 10px 0;
+        }
+        .product-item .price {
+            color: #667eea;
+            font-size: 20px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .product-item .old-price {
+            color: #999999;
+            text-decoration: line-through;
+            font-size: 16px;
+        }
+        .urgency {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            margin: 30px 0;
+            text-align: center;
+        }
+        .urgency p {
+            color: #856404;
+            font-size: 18px;
+            font-weight: bold;
+            margin: 0;
+        }
+        .footer {
+            background-color: #333333;
+            color: #ffffff;
+            padding: 30px;
+            text-align: center;
+            font-size: 14px;
+        }
+        .footer a {
+            color: #ffffff;
+            text-decoration: underline;
+        }
+        .social-proof {
+            background-color: #e8f5e9;
+            padding: 20px;
+            margin: 30px 0;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .social-proof p {
+            color: #2e7d32;
+            font-style: italic;
+            margin: 0;
+        }
+        @media only screen and (max-width: 600px) {
+            .product-grid {
+                grid-template-columns: 1fr;
+            }
+            .content h2 {
+                font-size: 24px;
+            }
+            .discount-badge {
+                font-size: 36px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🎉 Summer Sale 2024</h1>
+            <p>Your favorite brands at unbeatable prices</p>
+        </div>
+
+        <!-- Hero Image -->
+        <img src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&h=300&fit=crop" alt="Summer Sale Banner" class="hero-image" />
+
+        <!-- Main Content -->
+        <div class="content">
+            <h2>Don't Miss Out!</h2>
+            <p>Get ready for the biggest sale of the season. Shop now and save up to 50% on all your favorite items!</p>
+            
+            <div class="discount-badge">
+                50% OFF
+            </div>
+
+            <a href="https://example.com/shop" class="cta-button">Shop Now →</a>
+
+            <!-- Urgency Indicator -->
+            <div class="urgency">
+                <p>⏰ Limited Time Offer - Ends in 48 Hours!</p>
+            </div>
+
+            <!-- Social Proof -->
+            <div class="social-proof">
+                <p>"Best sale of the year! I saved over $200!" - Sarah M., Verified Customer</p>
+            </div>
+        </div>
+
+        <!-- Products Section -->
+        <div class="products">
+            <h3>Featured Products</h3>
+            <div class="product-grid">
+                <div class="product-item">
+                    <img src="https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=150&h=150&fit=crop" alt="Product 1" />
+                    <h4>Premium Watch</h4>
+                    <div class="price">$149.99</div>
+                    <div class="old-price">$299.99</div>
+                </div>
+                <div class="product-item">
+                    <img src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=150&h=150&fit=crop" alt="Product 2" />
+                    <h4>Wireless Headphones</h4>
+                    <div class="price">$79.99</div>
+                    <div class="old-price">$159.99</div>
+                </div>
+                <div class="product-item">
+                    <img src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=150&h=150&fit=crop" alt="Product 3" />
+                    <h4>Running Shoes</h4>
+                    <div class="price">$89.99</div>
+                    <div class="old-price">$179.99</div>
+                </div>
+                <div class="product-item">
+                    <img src="https://images.unsplash.com/photo-1567427017947-545c5f8d16ad?w=150&h=150&fit=crop" alt="Product 4" />
+                    <h4>Designer Bag</h4>
+                    <div class="price">$199.99</div>
+                    <div class="old-price">$399.99</div>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 30px;">
+                <a href="https://example.com/products" class="cta-button">View All Products →</a>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p><strong>Your Brand Name</strong></p>
+            <p>123 Main Street, City, State 12345</p>
+            <p>
+                <a href="https://example.com/unsubscribe">Unsubscribe</a> | 
+                <a href="https://example.com/preferences">Email Preferences</a> | 
+                <a href="https://example.com/privacy">Privacy Policy</a>
+            </p>
+            <p style="margin-top: 20px; font-size: 12px; color: #999999;">
+                You received this email because you subscribed to our newsletter.<br>
+                © 2024 Your Brand Name. All rights reserved.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
+

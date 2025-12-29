@@ -1,0 +1,79 @@
+{
+  "campaign_id": "01K5VV1R72C2FAGNS9446DYC05",
+  "image_name": "www.klaviyo.com_campaign_01K5VV1R72C2FAGNS9446DYC05_web-view(iPhone 14 Pro Max).png",
+  "image_path": "/Users/a0c1fjt/Downloads/klyaviyo/www.klaviyo.com_campaign_01K5VV1R72C2FAGNS9446DYC05_web-view(iPhone 14 Pro Max).png",
+  "analysis": {
+    "email_visual_elements": {
+      "header": {
+        "logo": {
+          "text": "UCO",
+          "color": "orange (vibrant, brand-specific)",
+          "position": "top-center",
+          "tagline": "Unplug. Connect. Outdoors."
+        },
+        "navigation": {
+          "items": [
+            "CAMPING",
+            "BACKYARD & PATIO",
+            "HIKING",
+            "EMERGENCY PREP"
+          ],
+          "layout": "horizontal bar",
+          "color_scheme": "dark gray text on white background"
+        }
+      },
+      "hero_image": {
+        "description": "Primary action shot of two people outdoors with outdoor gear",
+        "elements": [
+          "Two people (one in checkered shirt and jeans, other in plaid shirt and beanie)",
+          "Red container (held by one person)",
+          "Blue item (held by the other person)",
+          "Outdoor setting (trees, grass, chair, clear blue sky)"
+        ],
+        "color_scheme": "Natural outdoor palette (blue sky, green trees, earthy tones)",
+        "composition": "Medium shot focused on people and products"
+      },
+      "call_to_action_button": {
+        "text": "CHECK OUT ALL THE GEAR",
+        "color": "Orange background with white text",
+        "position": "Centered below bullet point section",
+        "design": "Rounded corners, bold typography"
+      },
+      "product_images": [
+        {
+          "description": "Close-up of hands preparing food outdoors",
+          "elements": [
+            "Hands holding blue plate",
+            "Apple slices (red apple)",
+            "Knife (blue handle)",
+            "Blue container (side view)",
+            "Outdoor setting (blurred background, camp chair)"
+          ],
+          "color_scheme": "Warm red/orange apple contrast against blue plate and neutral background",
+          "composition": "Hands and plate in focus, shallow depth of field"
+        }
+      ],
+      "background": {
+        "main_color": "White",
+        "accent_color": "Orange (used in logo, CTA button, and footer section)",
+        "typography": "Dark gray for body text"
+      },
+      "layout_structure": [
+        "Header section (logo + navigation)",
+        "Hero image section (with title and people photo)",
+        "Bullet point section (list of best sellers)",
+        "CTA button section (prominent centering)",
+        "Product image section (plate with food)"
+      ],
+      "design_tone": "Practical, outdoorsy, and approachable—aligning with outdoor gear aesthetics"
+    }
+  },
+  "metadata": {
+    "provider": "ollama",
+    "model": "qwen3-vl",
+    "usage": {
+      "eval_tokens": 3092,
+      "prompt_tokens": 2757
+    }
+  }
+}

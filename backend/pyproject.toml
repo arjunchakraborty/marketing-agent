@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "marketing-agent-backend"
+version = "0.1.0"
+description = "FastAPI backend for marketing intelligence agent"
+authors = [{ name = "Marketing Agent Team" }]
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "sqlmodel",
+    "sqlalchemy",
+    "pydantic-settings",
+    "psycopg[binary]",
+    "python-multipart",
+    "pandas",
+    "httpx",
+    "openai>=1.0.0",
+    "anthropic>=0.18.0",
+    "numpy",
+    "scikit-learn",
+    "pillow",
+    "torch",
+    "torchvision",
+    "transformers",
+    "opencv-python-headless",
+    "chromadb",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+    "mypy",
+]
+
+
+[tool.pytest.ini_options]
+pythonpath = ["app"]
+addopts = "-ra"
+
+[tool.setuptools]
+    packages = ["app", "storage"]

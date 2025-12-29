@@ -1,0 +1,13 @@
+{
+  "campaign_id": "01K705JPM1AK1QP05SB2SEW7J5",
+  "image_name": "www.klaviyo.com_campaign_01K705JPM1AK1QP05SB2SEW7J5_web-view(iPhone 14 Pro Max).png",
+  "image_path": "/Users/a0c1fjt/Downloads/klyaviyo/www.klaviyo.com_campaign_01K705JPM1AK1QP05SB2SEW7J5_web-view(iPhone 14 Pro Max).png",
+  "analysis": {
+    "raw_analysis": ""
+  },
+  "metadata": {
+    "provider": "ollama",
+    "model": "qwen3-vl",
+    "usage": {}
+  }
+}
