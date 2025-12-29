@@ -1,0 +1,11 @@
+{
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda",
+    "python-envs.pythonProjects": [],
+    // Point VS Code to the project venv (helps Pylance resolve imports)
+    "python.defaultInterpreterPath": "${workspaceFolder}/backend/venv/bin/python",
+    // Help Pylance/analysis find the backend package modules
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/backend"
+    ]
+}
