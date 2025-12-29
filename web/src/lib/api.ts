@@ -84,3 +84,114 @@ export async function generateSqlFromPrompt(prompt: string) {
     rows: Record<string, unknown>[];
   }>(response);
 }
+
+// Data Upload API Functions
+export interface CampaignDataZipUploadResponse {
+  status: string;
+  csv_ingestion?: {
+    status: string;
+    table_name: string;
+    total_rows: number;
+    inserted: number;
+    updated: number;
+    errors?: string[] | null;
+    columns: string[];
+    ingested_at: string;
+  };
+  vector_db_loading?: {
+    status: string;
+    total_campaigns: number;
+    loaded: number;
+    skipped: number;
+    errors: number;
+    campaigns_with_images: number;
+    campaigns_without_images: number;
+    error_details?: Array<{ campaign_id: string; error: string }>;
+    collection_name: string;
+    vector_db_path: string;
+  };
+  processed_at: string;
+}
+
+export interface ShopifyIntegrationZipUploadResponse {
+  status: string;
+  extracted_path: string;
+  processed_at: string;
+  details: {
+    ingested_count: number;
+    datasets: Array<{
+      table_name: string;
+      business: string;
+      category: string;
+      dataset_name: string;
+      row_count: number;
+      columns: string[];
+    }>;
+  };
+}
+
+export interface VectorDbZipUploadResponse {
+  status: string;
+  extracted_path: string;
+  processed_at: string;
+  details: {
+    status: string;
+    total_campaigns: number;
+    loaded: number;
+    skipped: number;
+    errors: number;
+    campaigns_with_images: number;
+    campaigns_without_images: number;
+    error_details?: Array<{ campaign_id: string; error: string }>;
+    collection_name: string;
+    vector_db_path: string;
+  };
+}
+
+export async function uploadCampaignDataZip(
+  file: File
+): Promise<CampaignDataZipUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("table_name", "campaigns");
+  formData.append("collection_name", "campaign_data");
+  formData.append("overwrite_existing", "true");
+
+  const response = await fetch(`${API_BASE}/v1/ingestion/upload/klaviyo`, {
+    method: "POST",
+    body: formData,
+  });
+  return handleResponse<CampaignDataZipUploadResponse>(response);
+}
+
+export async function uploadShopifyIntegrationZip(
+  file: File,
+  business?: string
+): Promise<ShopifyIntegrationZipUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (business) {
+    formData.append("business", business);
+  }
+
+  const response = await fetch(`${API_BASE}/v1/ingestion/upload/shopify-integration`, {
+    method: "POST",
+    body: formData,
+  });
+  return handleResponse<ShopifyIntegrationZipUploadResponse>(response);
+}
+
+export async function uploadVectorDbZip(
+  file: File
+): Promise<VectorDbZipUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("collection_name", "campaign_data");
+  formData.append("overwrite_existing", "true");
+
+  const response = await fetch(`${API_BASE}/v1/ingestion/upload/vector-db`, {
+    method: "POST",
+    body: formData,
+  });
+  return handleResponse<VectorDbZipUploadResponse>(response);
+}

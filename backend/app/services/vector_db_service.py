@@ -129,7 +129,7 @@ class VectorDBService:
             
         Returns:
             List of floats representing the embedding vector
-        
+        """
         # Try OpenAI first if available
         if settings.openai_api_key:
             try:
@@ -143,7 +143,6 @@ class VectorDBService:
             except Exception as e:
                 logger.warning(f"OpenAI embedding failed: {str(e)}, trying Ollama fallback")
         
-        """
         # Fallback to Ollama
         try:
             import httpx

@@ -7,6 +7,7 @@ interface AppShellProps {
 
 const navigation = [
   { label: "Overview", href: "#overview" },
+  { label: "Data Upload", href: "#data-upload" },
   { label: "SQL Explorer", href: "#sql-explorer" },
   { label: "Experiment Planner", href: "#experiments" },
   { label: "Campaign Strategy", href: "#campaign-strategy-experiment" },
