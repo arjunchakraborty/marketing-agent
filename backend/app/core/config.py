@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     ollama_embedding_model: str = Field(default="nomic-embed-text", description="Ollama embedding model name for vector search")
     ollama_max_tables: int = Field(default=6, description="Maximum number of tables to include in Ollama prompt")
     ollama_max_columns: int = Field(default=15, description="Maximum number of columns per table to show in Ollama prompt")
-    default_llm_provider: str = Field(default="openai", description="Default LLM provider: openai, anthropic, or ollama")
+    default_llm_provider: str = Field(default="ollama", description="Default LLM provider: openai, anthropic, or ollama")
     use_llm_for_sql: bool = Field(default=True, description="Use LLM for prompt-to-SQL generation")
 
     # Vector Search Configuration
