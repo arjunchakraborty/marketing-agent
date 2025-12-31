@@ -401,3 +401,156 @@ class VectorDBService:
         except Exception as e:
             logger.error(f"Failed to delete campaign: {str(e)}")
 
+    def add_product_analysis(
+        self,
+        product_id: str,
+        product_data: Dict[str, Any],
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """
+        Add product analysis to vector database.
+        
+        Args:
+            product_id: Product ID (used as document ID)
+            product_data: Product data to embed
+            metadata: Additional metadata to store
+        """
+        # Ensure collection has correct dimension before adding
+        self._ensure_collection_dimension()
+        
+        # Create text representation of product for embedding
+        text_parts = []
+        
+        # Extract key product information
+        if "product_id" in product_data:
+            text_parts.append(f"Product ID: {product_data['product_id']}")
+        
+        product = product_data.get("product", {})
+        if "name" in product:
+            text_parts.append(f"Product: {product['name']}")
+        elif "product_name" in product:
+            text_parts.append(f"Product: {product['product_name']}")
+        
+        if "description" in product:
+            text_parts.append(f"Description: {product['description']}")
+        elif "product_description" in product:
+            text_parts.append(f"Description: {product['product_description']}")
+        
+        if "category" in product:
+            text_parts.append(f"Category: {product['category']}")
+        elif "product_category" in product:
+            text_parts.append(f"Category: {product['product_category']}")
+        
+        if "price" in product:
+            text_parts.append(f"Price: ${product['price']}")
+        elif "product_price" in product:
+            text_parts.append(f"Price: ${product['product_price']}")
+        
+        if "sku" in product:
+            text_parts.append(f"SKU: {product['sku']}")
+        elif "product_sku" in product:
+            text_parts.append(f"SKU: {product['product_sku']}")
+        
+        # Add business name
+        if "business_name" in product_data:
+            text_parts.append(f"Business: {product_data['business_name']}")
+        
+        # Add stored images info
+        if "stored_image_paths" in product_data:
+            stored_count = len(product_data.get("stored_image_paths", []))
+            if stored_count > 0:
+                text_parts.append(f"Stored images: {stored_count}")
+        
+        # Create combined text
+        text = " ".join(text_parts)
+        
+        # Create embedding
+        embedding = self.create_embedding(text)
+        
+        # Prepare metadata
+        doc_metadata = {
+            "product_id": product_id,
+            "business_name": product_data.get("business_name", ""),
+            "product_name": product.get("name") or product.get("product_name", ""),
+            "stored_images": len(product_data.get("stored_image_paths", [])),
+            **(metadata or {})
+        }
+        
+        # Store in vector database
+        self.collection.add(
+            ids=[product_id],
+            embeddings=[embedding],
+            documents=[json.dumps(product_data, default=str)],
+            metadatas=[doc_metadata]
+        )
+        
+        logger.info(f"Added product analysis to vector DB: {product_id}")
+
+    def get_product_analysis(
+        self,
+        product_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve product analysis from vector database.
+        
+        Args:
+            product_id: Product ID to retrieve
+            
+        Returns:
+            Product data dictionary or None if not found
+        """
+        try:
+            results = self.collection.get(
+                ids=[product_id],
+                include=["documents", "metadatas"]
+            )
+            
+            if results["ids"]:
+                doc = results["documents"][0]
+                return json.loads(doc)
+            return None
+        except Exception as e:
+            logger.error(f"Failed to retrieve product analysis: {str(e)}")
+            return None
+
+    def search_similar_products(
+        self,
+        query_text: str,
+        n_results: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for similar products using semantic similarity.
+        
+        Args:
+            query_text: Text query to search for
+            n_results: Number of results to return
+            
+        Returns:
+            List of similar product analyses
+        """
+        # Create embedding for query
+        query_embedding = self.create_embedding(query_text)
+        
+        # Search
+        results = self.collection.query(
+            query_embeddings=[query_embedding],
+            n_results=n_results,
+            include=["documents", "metadatas", "distances"]
+        )
+        
+        # Format results
+        similar_products = []
+        for i, product_id in enumerate(results["ids"][0]):
+            doc = json.loads(results["documents"][0][i])
+            metadata = results["metadatas"][0][i]
+            distance = results["distances"][0][i]
+            
+            similar_products.append({
+                "product_id": product_id,
+                "product_data": doc,
+                "metadata": metadata,
+                "similarity_score": 1.0 - distance,  # Convert distance to similarity
+            })
+        
+        return similar_products
+

@@ -123,7 +123,7 @@ LIMIT 20`);
         <CardHeader>
           <CardTitle>Campaign Strategy Analysis Agent</CardTitle>
           <CardDescription>
-            Analyze campaign data and images to identify the most impactful visual elements
+            Analyze Klaviyo campaigns and images to identify the most impactful visual elements
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
