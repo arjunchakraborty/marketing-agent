@@ -145,7 +145,11 @@ class CampaignGenerationService:
             # Combine all parts into final prompt
             hero_prompt = ", ".join(hero_prompt_parts)
 
-            
+            # Get workflow override from config if available
+            workflow_override = None
+            if settings.comfyui_workflow_path:
+                workflow_override = settings.comfyui_workflow_path
+                logger.info(f"Using workflow override from config: {workflow_override}")
             
             # Generate hero image using image generation service
             try:
@@ -153,6 +157,7 @@ class CampaignGenerationService:
                     prompt=hero_prompt,
                     style=tone,
                     size="1200x600",  # Email hero image standard size
+                    workflow_override=workflow_override,
                 )
                 if hero_image_url:
                     logger.info(f"Successfully generated hero image: {hero_image_url}")
