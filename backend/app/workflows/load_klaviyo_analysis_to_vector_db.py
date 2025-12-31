@@ -245,9 +245,13 @@ def load_image_analyses_from_folder(folder_path: str, convert_format: bool = Tru
     
     logger.info(f"Loading image analyses from folder: {folder_path}")
     
-    # Find all JSON files
-    json_files = list(folder.glob("*.json"))
-    logger.info(f"Found {len(json_files)} JSON files")
+    # Find all JSON files recursively (including subdirectories)
+    json_files = list(folder.rglob("*.json"))
+    logger.info(f"Found {len(json_files)} JSON files (including subdirectories)")
+    
+    if not json_files:
+        logger.warning(f"No JSON files found in folder: {folder_path}")
+        return {}
     
     # Group by campaign_id
     analyses_by_campaign: Dict[str, List[Dict[str, Any]]] = {}

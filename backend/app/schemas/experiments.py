@@ -1,16 +1,16 @@
 """Schemas for campaign strategy experiments."""
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 from pydantic import BaseModel, Field
 
 
 class ExperimentRunRequest(BaseModel):
-    """Request to run a campaign strategy experiment."""
-    sql_query: Optional[str] = Field(None, description="SQL query to find impactful campaigns")
-    prompt_query: Optional[str] = Field(None, description="Natural language prompt to generate SQL query")
-    image_directory: Optional[str] = Field(None, description="Directory path containing campaign images")
+    """Request to run a campaign strategy experiment using vector database."""
+    prompt_query: str = Field(..., description="Natural language prompt describing what campaigns to find (e.g., 'high performing email campaigns', 'campaigns with high conversion rates')")
+    collection_name: Optional[str] = Field(None, description="Optional vector database collection name to search. If not provided, searches default collections.")
     experiment_name: Optional[str] = Field(None, description="Name for this experiment run")
+    num_campaigns: int = Field(10, description="Number of campaigns to retrieve and analyze")
 
 
 class ExperimentRunResponse(BaseModel):
@@ -22,6 +22,7 @@ class ExperimentRunResponse(BaseModel):
     visual_elements_found: int
     campaign_ids: List[str] = Field(default_factory=list)
     products_promoted: List[str] = Field(default_factory=list)
+    key_features: Optional[Dict[str, Any]] = Field(None, description="Key features, patterns, and recommendations extracted from campaigns")
     error: Optional[str] = None
 
 

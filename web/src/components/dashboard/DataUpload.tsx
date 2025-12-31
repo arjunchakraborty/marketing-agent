@@ -4,23 +4,22 @@ import { useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   uploadCampaignDataZip,
-  uploadShopifyIntegrationZip,
-  uploadVectorDbZip,
+  uploadProductsZip,
   type CampaignDataZipUploadResponse,
-  type ShopifyIntegrationZipUploadResponse,
-  type VectorDbZipUploadResponse,
+  type ProductZipUploadResponse,
 } from "@/lib/api";
 
-type UploadType = "campaign-data" | "shopify-integration" | "vector-db";
+type UploadType = "campaign-data" | "products";
 
 interface UploadResult {
   type: UploadType;
   success: boolean;
   message: string;
-  data?: CampaignDataZipUploadResponse | ShopifyIntegrationZipUploadResponse | VectorDbZipUploadResponse;
+  data?: CampaignDataZipUploadResponse | ProductZipUploadResponse;
   error?: string;
 }
 
@@ -31,7 +30,10 @@ export function DataUpload() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<UploadType>("campaign-data");
-  const [business, setBusiness] = useState("");
+  const [campaignBusinessName, setCampaignBusinessName] = useState("");
+  const [campaignCollectionName, setCampaignCollectionName] = useState("");
+  const [productBusinessName, setProductBusinessName] = useState("");
+  const [productCollectionName, setProductCollectionName] = useState("");
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -91,17 +93,22 @@ export function DataUpload() {
     setUploadResult(null);
 
     try {
-      let result: CampaignDataZipUploadResponse | ShopifyIntegrationZipUploadResponse | VectorDbZipUploadResponse;
+      let result: CampaignDataZipUploadResponse | ShopifyIntegrationZipUploadResponse | VectorDbZipUploadResponse | ProductZipUploadResponse;
 
       switch (activeTab) {
         case "campaign-data":
-          result = await uploadCampaignDataZip(selectedFile);
+          result = await uploadCampaignDataZip(
+            selectedFile,
+            campaignBusinessName.trim() || undefined,
+            campaignCollectionName || undefined
+          );
           break;
-        case "shopify-integration":
-          result = await uploadShopifyIntegrationZip(selectedFile, business || undefined);
-          break;
-        case "vector-db":
-          result = await uploadVectorDbZip(selectedFile);
+        case "products":
+          result = await uploadProductsZip(
+            selectedFile,
+            productBusinessName.trim() || undefined,
+            productCollectionName || undefined
+          );
           break;
         default:
           throw new Error("Invalid upload type");
@@ -171,35 +178,46 @@ export function DataUpload() {
             )}
             {uploadResult.type === "campaign-data" && uploadResult.data.vector_db_loading && (
               <div>
-                <p className="font-semibold">Vector DB Loading:</p>
-                <p>Loaded: {uploadResult.data.vector_db_loading.loaded} campaigns</p>
-                <p>With Images: {uploadResult.data.vector_db_loading.campaigns_with_images}</p>
-              </div>
-            )}
-            {uploadResult.type === "shopify-integration" && uploadResult.data.details && (
-              <div>
-                <p className="font-semibold">Shopify Integration:</p>
-                <p>Datasets Ingested: {uploadResult.data.details.ingested_count}</p>
-                {uploadResult.data.details.datasets.length > 0 && (
-                  <div className="mt-2">
-                    <p className="font-semibold">Tables Created:</p>
-                    <ul className="list-disc list-inside">
-                      {uploadResult.data.details.datasets.map((ds) => (
-                        <li key={ds.table_name}>
-                          {ds.table_name} ({ds.row_count} rows)
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                <p className="font-semibold">Image Analysis & Vector DB Loading:</p>
+                {uploadResult.data.vector_db_loading.status === "error" ? (
+                  <p className="text-red-600 dark:text-red-400">
+                    Error: {uploadResult.data.vector_db_loading.error}
+                  </p>
+                ) : (
+                  <>
+                    <p>Loaded: {uploadResult.data.vector_db_loading.loaded} campaigns</p>
+                    <p>With Images: {uploadResult.data.vector_db_loading.campaigns_with_images}</p>
+                    <p>Without Images: {uploadResult.data.vector_db_loading.campaigns_without_images}</p>
+                    <p>Collection: {uploadResult.data.vector_db_loading.collection_name}</p>
+                    {uploadResult.data.vector_db_loading.skipped > 0 && (
+                      <p>Skipped (already exists): {uploadResult.data.vector_db_loading.skipped}</p>
+                    )}
+                  </>
                 )}
               </div>
             )}
-            {uploadResult.type === "vector-db" && uploadResult.data.details && (
+            {uploadResult.type === "campaign-data" && !uploadResult.data.vector_db_loading && (
               <div>
-                <p className="font-semibold">Vector DB Loading:</p>
-                <p>Loaded: {uploadResult.data.details.loaded} campaigns</p>
-                <p>With Images: {uploadResult.data.details.campaigns_with_images}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+                  Note: No image-analysis-extract folder found. Only CSV data was ingested.
+                </p>
+              </div>
+            )}
+            {uploadResult.type === "products" && uploadResult.data.details && (
+              <div>
+                <p className="font-semibold">Product Ingestion:</p>
+                <p>Products Processed: {uploadResult.data.details.products_processed}</p>
+                <p>Images Stored: {uploadResult.data.details.images_stored}</p>
                 <p>Collection: {uploadResult.data.details.collection_name}</p>
+                {uploadResult.data.details.product_ids.length > 0 && (
+                  <div className="mt-2">
+                    <p className="font-semibold">Product IDs:</p>
+                    <p className="text-xs break-words">
+                      {uploadResult.data.details.product_ids.slice(0, 10).join(", ")}
+                      {uploadResult.data.details.product_ids.length > 10 && "..."}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -218,10 +236,9 @@ export function DataUpload() {
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as UploadType)}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="campaign-data">Campaign Data</TabsTrigger>
-            <TabsTrigger value="shopify-integration">Shopify Integration</TabsTrigger>
-            <TabsTrigger value="vector-db">Vector DB</TabsTrigger>
+            <TabsTrigger value="products">Products</TabsTrigger>
           </TabsList>
 
           <TabsContent value="campaign-data" className="space-y-4">
@@ -232,36 +249,71 @@ export function DataUpload() {
                 • image-analysis-extract/ folder with JSON files
               </p>
             </div>
-          </TabsContent>
-
-          <TabsContent value="shopify-integration" className="space-y-4">
             <div className="space-y-2">
-              <Label>Expected Structure</Label>
+              <Label htmlFor="campaign-business">Business Name (Optional)</Label>
+              <Input
+                id="campaign-business"
+                type="text"
+                value={campaignBusinessName}
+                onChange={(e) => setCampaignBusinessName(e.target.value)}
+                placeholder="Auto-extracted from zip filename if not provided"
+              />
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                • business_name/<br />
-                &nbsp;&nbsp;• category/<br />
-                &nbsp;&nbsp;&nbsp;&nbsp;• dataset.csv
+                If not provided, business name will be extracted from the zip filename.
+                Example: "UCO_Gear_Campaigns.zip" → "UCO_Gear"
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="business">Business Name (Optional)</Label>
-              <input
-                id="business"
+              <Label htmlFor="campaign-collection">Collection Name (Optional)</Label>
+              <Input
+                id="campaign-collection"
                 type="text"
-                value={business}
-                onChange={(e) => setBusiness(e.target.value)}
-                placeholder="Filter by business name"
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
+                value={campaignCollectionName}
+                onChange={(e) => setCampaignCollectionName(e.target.value)}
+                placeholder="Default: campaigns_{business_name} or campaign_data"
               />
             </div>
           </TabsContent>
 
-          <TabsContent value="vector-db" className="space-y-4">
+          <TabsContent value="products" className="space-y-4">
             <div className="space-y-2">
               <Label>Expected Structure</Label>
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                • email_campaigns.csv (or any CSV file)<br />
-                • image-analysis-extract/ folder with JSON files
+                • products.csv or products.json (product data)<br />
+                • images/ folder with product images (*.jpg, *.png, etc.)<br />
+                <br />
+                Or flat structure:<br />
+                • products.csv or products.json<br />
+                • product_image_1.jpg, product_image_2.png, etc.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="product-business">Business Name (Optional)</Label>
+              <Input
+                id="product-business"
+                type="text"
+                value={productBusinessName}
+                onChange={(e) => setProductBusinessName(e.target.value)}
+                placeholder="Auto-extracted from zip filename if not provided"
+              />
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                If not provided, business name will be extracted from the zip filename.
+                Example: "acme_products.zip" → "acme"
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="product-collection">Collection Name (Optional)</Label>
+              <Input
+                id="product-collection"
+                type="text"
+                value={productCollectionName}
+                onChange={(e) => setProductCollectionName(e.target.value)}
+                placeholder="Default: products_{business_name}"
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                Images will be stored in: storage/product_images/{`{business_name}`}/{`{product_id}`}/
               </p>
             </div>
           </TabsContent>

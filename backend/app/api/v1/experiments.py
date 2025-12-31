@@ -2,7 +2,7 @@
 import json
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from fastapi import APIRouter, HTTPException
 
@@ -13,38 +13,40 @@ from ...schemas.experiments import (
     ExperimentRunResponse,
     ExperimentResultsResponse,
 )
-from ...workflows.campaign_strategy_workflow import run_campaign_strategy_experiment
+from ...workflows.vector_db_experiment_workflow import run_vector_db_experiment
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post("/run", response_model=ExperimentRunResponse, summary="Run campaign strategy experiment")
+@router.post("/run", response_model=ExperimentRunResponse, summary="Run campaign strategy experiment using vector database")
 async def run_experiment(payload: ExperimentRunRequest) -> ExperimentRunResponse:
     """
-    Run a complete campaign strategy analysis workflow.
+    Run a campaign strategy analysis workflow using vector database.
     
     This will:
-    1. Query impactful campaigns using SQL (generated from prompt or provided)
-    2. Analyze images of those campaigns
-    3. Cross-index visual elements with performance
-    4. Store all results in database
+    1. Search for campaigns in vector database using the prompt query
+    2. Extract key features and patterns from identified campaigns
+    3. Generate recommendations about what makes these campaigns effective
+    4. Return insights about campaign features
+    
+    The prompt_query should describe what type of campaigns to find (e.g., 
+    "high performing email campaigns", "campaigns with high conversion rates",
+    "product launch campaigns", etc.)
     """
-    logger.info(f"Starting experiment run: name={payload.experiment_name}, has_sql={bool(payload.sql_query)}, has_prompt={bool(payload.prompt_query)}, image_dir={payload.image_directory}")
+    logger.info(f"Starting vector DB experiment: name={payload.experiment_name}, prompt_query={payload.prompt_query[:100]}")
     
     try:
-        logger.debug(f"Experiment payload: sql_query length={len(payload.sql_query) if payload.sql_query else 0}, prompt_query={payload.prompt_query[:100] if payload.prompt_query else None}")
-        
-        result = run_campaign_strategy_experiment(
-            sql_query=payload.sql_query,
+        result = run_vector_db_experiment(
             prompt_query=payload.prompt_query,
-            image_directory=payload.image_directory,
+            collection_name=payload.collection_name,
             experiment_name=payload.experiment_name,
+            num_campaigns=payload.num_campaigns,
         )
         
         logger.info(f"Experiment workflow completed: experiment_run_id={result.get('experiment_run_id')}, status={result.get('status')}")
         
-        if "error" in result:
+        if result.get("status") == "error" or "error" in result:
             logger.error(f"Experiment workflow returned error: experiment_run_id={result.get('experiment_run_id')}, error={result.get('error')}")
             return ExperimentRunResponse(
                 experiment_run_id=result.get("experiment_run_id", "unknown"),
@@ -52,20 +54,26 @@ async def run_experiment(payload: ExperimentRunRequest) -> ExperimentRunResponse
                 campaigns_analyzed=0,
                 images_analyzed=0,
                 visual_elements_found=0,
-                error=result["error"],
+                error=result.get("error", "Unknown error"),
             )
         
-        logger.info(f"Experiment successful: campaigns={result.get('campaigns_analyzed', 0)}, images={result.get('images_analyzed', 0)}, elements={result.get('visual_elements_found', 0)}")
+        key_features = result.get("key_features", {})
+        recommendations = key_features.get("recommendations", [])
+        
+        logger.info(f"Experiment successful: campaigns={result.get('campaigns_analyzed', 0)}, features={len(key_features.get('key_features', []))}")
         
         return ExperimentRunResponse(
             experiment_run_id=result["experiment_run_id"],
             status=result.get("status", "completed"),
             campaigns_analyzed=result.get("campaigns_analyzed", 0),
-            images_analyzed=result.get("images_analyzed", 0),
-            visual_elements_found=result.get("visual_elements_found", 0),
+            images_analyzed=0,  # Not using image analysis in vector DB workflow
+            visual_elements_found=len(key_features.get("key_features", [])),
             campaign_ids=result.get("campaign_ids", []),
-            products_promoted=result.get("products_promoted", []),
+            products_promoted=[],  # Can be extracted from campaigns if needed
+            key_features=key_features,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"Experiment run failed with exception: {type(e).__name__}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Experiment failed: {str(e)}")

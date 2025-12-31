@@ -148,16 +148,42 @@ export interface VectorDbZipUploadResponse {
   };
 }
 
+export interface ProductZipUploadResponse {
+  status: string;
+  extracted_path: string;
+  processed_at: string;
+  details: {
+    products_processed: number;
+    images_stored: number;
+    collection_name: string;
+    product_ids: string[];
+  };
+}
+
 export async function uploadCampaignDataZip(
-  file: File
+  file: File,
+  businessName?: string,
+  collectionName?: string
 ): Promise<CampaignDataZipUploadResponse> {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("table_name", "campaigns");
-  formData.append("collection_name", "campaign_data");
   formData.append("overwrite_existing", "true");
 
-  const response = await fetch(`${API_BASE}/v1/ingestion/upload/klaviyo`, {
+  const queryParams = new URLSearchParams();
+  if (businessName) {
+    queryParams.append("business_name", businessName);
+  }
+  if (collectionName) {
+    queryParams.append("collection_name", collectionName);
+  }
+
+  const queryString = queryParams.toString();
+  const url = queryString 
+    ? `${API_BASE}/v1/ingestion/upload/klaviyo?${queryString}`
+    : `${API_BASE}/v1/ingestion/upload/klaviyo`;
+
+  const response = await fetch(url, {
     method: "POST",
     body: formData,
   });
@@ -194,4 +220,32 @@ export async function uploadVectorDbZip(
     body: formData,
   });
   return handleResponse<VectorDbZipUploadResponse>(response);
+}
+
+export async function uploadProductsZip(
+  file: File,
+  businessName?: string,
+  collectionName?: string
+): Promise<ProductZipUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const queryParams = new URLSearchParams();
+  if (businessName) {
+    queryParams.append("business_name", businessName);
+  }
+  if (collectionName) {
+    queryParams.append("collection_name", collectionName);
+  }
+
+  const queryString = queryParams.toString();
+  const url = queryString 
+    ? `${API_BASE}/v1/ingestion/upload/products?${queryString}`
+    : `${API_BASE}/v1/ingestion/upload/products`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    body: formData,
+  });
+  return handleResponse<ProductZipUploadResponse>(response);
 }
