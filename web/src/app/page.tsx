@@ -1,19 +1,18 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { InventoryAlerts } from "@/components/dashboard/InventoryAlerts";
 import { RecommendationBoard } from "@/components/dashboard/RecommendationBoard";
+import { DataUpload } from "@/components/dashboard/DataUpload";
 import {
-  campaignRecommendations,
   inventoryAlerts,
 } from "@/lib/seedData";
 import { PromptSqlExplorer } from "@/components/dashboard/PromptSqlExplorer";
 import { CampaignStrategyExperiment } from "@/components/dashboard/CampaignStrategyExperiment";
-import { MetricsOverview } from "@/components/dashboard/MetricsOverview";
 
 export default function Home() {
   return (
     <AppShell>
-      <section id="overview">
-        <MetricsOverview />
+      <section id="data-upload" className="mb-10">
+        <DataUpload />
       </section>
 
       <section id="sql-explorer" className="mt-10 grid gap-6 lg:grid-cols-[2fr_1fr]">
@@ -56,7 +55,7 @@ export default function Home() {
       </section>
 
       <section id="campaigns" className="mt-10">
-        <RecommendationBoard recommendations={campaignRecommendations} />
+        <RecommendationBoard />
       </section>
 
       <section id="inventory" className="mt-10">
