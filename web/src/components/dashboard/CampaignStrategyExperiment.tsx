@@ -7,72 +7,37 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api";
-
-interface ExperimentRun {
-  experiment_run_id: string;
-  status: string;
-  campaigns_analyzed: number;
-  images_analyzed: number;
-  visual_elements_found: number;
-  campaign_ids: string[];
-  products_promoted: string[];
-}
-
-interface ExperimentResults {
-  experiment_run: {
-    experiment_run_id: string;
-    name: string;
-    description: string;
-    sql_query: string;
-    status: string;
-    results_summary: any;
-    created_at: string;
-  };
-  campaign_analyses: any[];
-  image_analyses: any[];
-  correlations: any[];
-}
+import { runExperiment, getExperimentResults, type ExperimentRunResponse, type ExperimentResultsResponse } from "@/lib/api";
 
 export function CampaignStrategyExperiment() {
-  const [sqlQuery, setSqlQuery] = useState(`SELECT campaign_id, campaign_name, open_rate, click_rate, conversion_rate, revenue
-FROM campaigns
-WHERE open_rate > 0.3 OR conversion_rate > 0.01
-ORDER BY conversion_rate DESC, revenue DESC
-LIMIT 20`);
-  const [promptQuery, setPromptQuery] = useState("");
-  const [imageDirectory, setImageDirectory] = useState("/Users/kerrief/projects/klyaviyo");
+  const [promptQuery, setPromptQuery] = useState("high performing email campaigns with high conversion rates");
+  const [collectionName, setCollectionName] = useState("");
   const [experimentName, setExperimentName] = useState("");
+  const [numCampaigns, setNumCampaigns] = useState(10);
   const [isRunning, setIsRunning] = useState(false);
-  const [currentExperiment, setCurrentExperiment] = useState<ExperimentRun | null>(null);
-  const [experimentResults, setExperimentResults] = useState<ExperimentResults | null>(null);
+  const [currentExperiment, setCurrentExperiment] = useState<ExperimentRunResponse | null>(null);
+  const [experimentResults, setExperimentResults] = useState<ExperimentResultsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const runExperiment = async () => {
+  const handleRunExperiment = async () => {
+    if (!promptQuery.trim()) {
+      setError("Please provide a prompt query describing what campaigns to find");
+      return;
+    }
+
     setIsRunning(true);
     setError(null);
     setCurrentExperiment(null);
     setExperimentResults(null);
 
     try {
-      const response = await fetch(`${API_BASE}/v1/experiments/run`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sql_query: sqlQuery || undefined,
-          prompt_query: promptQuery || undefined,
-          image_directory: imageDirectory || undefined,
-          experiment_name: experimentName || undefined,
-        }),
+      const result = await runExperiment({
+        prompt_query: promptQuery,
+        collection_name: collectionName || undefined,
+        experiment_name: experimentName || undefined,
+        num_campaigns: numCampaigns,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || "Experiment failed");
-      }
-
-      const result: ExperimentRun = await response.json();
       setCurrentExperiment(result);
 
       // Fetch full results
@@ -88,32 +53,10 @@ LIMIT 20`);
 
   const loadExperimentResults = async (experimentRunId: string) => {
     try {
-      const response = await fetch(`${API_BASE}/v1/experiments/${experimentRunId}`);
-      if (response.ok) {
-        const results: ExperimentResults = await response.json();
-        setExperimentResults(results);
-      }
+      const results = await getExperimentResults(experimentRunId);
+      setExperimentResults(results);
     } catch (err) {
       console.error("Failed to load experiment results:", err);
-    }
-  };
-
-  const generateSqlFromPrompt = async () => {
-    if (!promptQuery.trim()) return;
-
-    try {
-      const response = await fetch(`${API_BASE}/v1/analytics/prompt-sql`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: promptQuery }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSqlQuery(data.sql || "");
-      }
-    } catch (err) {
-      console.error("Failed to generate SQL:", err);
     }
   };
 
@@ -123,65 +66,59 @@ LIMIT 20`);
         <CardHeader>
           <CardTitle>Campaign Strategy Analysis Agent</CardTitle>
           <CardDescription>
-            Analyze Klaviyo campaigns and images to identify the most impactful visual elements
+            Use natural language to find campaigns in the vector database and extract key features, patterns, and recommendations
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="experiment-name">Experiment Name (Optional)</Label>
-            <Input
-              id="experiment-name"
-              value={experimentName}
-              onChange={(e) => setExperimentName(e.target.value)}
-              placeholder="e.g., Black Friday Campaign Analysis"
-            />
-          </div>
-
-          <Tabs defaultValue="sql" className="w-full">
-            <TabsList>
-              <TabsTrigger value="sql">SQL Query</TabsTrigger>
-              <TabsTrigger value="prompt">Natural Language Prompt</TabsTrigger>
-            </TabsList>
-            <TabsContent value="sql" className="space-y-2">
-              <Label htmlFor="sql-query">SQL Query to Find Impactful Campaigns</Label>
-              <Textarea
-                id="sql-query"
-                value={sqlQuery}
-                onChange={(e) => setSqlQuery(e.target.value)}
-                placeholder="SELECT campaign_id, campaign_name, open_rate, conversion_rate FROM campaigns WHERE conversion_rate > 0.05 ORDER BY conversion_rate DESC LIMIT 20"
-                rows={8}
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Write SQL to query campaigns. The query should return campaign_id, campaign_name, and performance metrics.
-                You can adjust this SQL to refine your analysis.
-              </p>
-            </TabsContent>
-            <TabsContent value="prompt" className="space-y-2">
-              <Label htmlFor="prompt-query">Natural Language Query</Label>
-              <Textarea
-                id="prompt-query"
-                value={promptQuery}
-                onChange={(e) => setPromptQuery(e.target.value)}
-                placeholder="Find the top 20 campaigns with the highest conversion rates from the last 3 months"
-                rows={4}
-              />
-              <Button onClick={generateSqlFromPrompt} variant="outline" size="sm">
-                Generate SQL from Prompt
-              </Button>
-            </TabsContent>
-          </Tabs>
-
-          <div className="space-y-2">
-            <Label htmlFor="image-directory">Image Directory Path</Label>
-            <Input
-              id="image-directory"
-              value={imageDirectory}
-              onChange={(e) => setImageDirectory(e.target.value)}
-              placeholder="/path/to/campaign/images"
+            <Label htmlFor="prompt-query">Prompt Query *</Label>
+            <Textarea
+              id="prompt-query"
+              value={promptQuery}
+              onChange={(e) => setPromptQuery(e.target.value)}
+              placeholder="e.g., high performing email campaigns with high conversion rates"
+              rows={4}
+              required
             />
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Path to directory containing campaign images. Campaign IDs should be in filenames (e.g., campaign_01K4QVNYM1QKSK61X7PXR019DF.png).
+              Describe what type of campaigns you want to analyze. Examples: "high performing email campaigns", 
+              "campaigns with high conversion rates", "product launch campaigns", etc.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="experiment-name">Experiment Name (Optional)</Label>
+              <Input
+                id="experiment-name"
+                value={experimentName}
+                onChange={(e) => setExperimentName(e.target.value)}
+                placeholder="e.g., Q1 Campaign Analysis"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="num-campaigns">Number of Campaigns</Label>
+              <Input
+                id="num-campaigns"
+                type="number"
+                value={numCampaigns}
+                onChange={(e) => setNumCampaigns(parseInt(e.target.value) || 10)}
+                min={1}
+                max={50}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="collection-name">Collection Name (Optional)</Label>
+            <Input
+              id="collection-name"
+              value={collectionName}
+              onChange={(e) => setCollectionName(e.target.value)}
+              placeholder="e.g., klaviyo_campaigns (leave empty to search all collections)"
+            />
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Specify a vector database collection to search. If not provided, searches default collections.
             </p>
           </div>
 
@@ -191,7 +128,7 @@ LIMIT 20`);
             </div>
           )}
 
-          <Button onClick={runExperiment} disabled={isRunning} className="w-full">
+          <Button onClick={handleRunExperiment} disabled={isRunning || !promptQuery.trim()} className="w-full">
             {isRunning ? "Running Analysis..." : "Run Campaign Strategy Analysis"}
           </Button>
         </CardContent>
@@ -204,30 +141,65 @@ LIMIT 20`);
             <CardDescription>Experiment ID: {currentExperiment.experiment_run_id}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <div className="text-sm text-slate-500 dark:text-slate-400">Campaigns Analyzed</div>
-                <div className="text-2xl font-bold dark:text-slate-100">{currentExperiment.campaigns_analyzed}</div>
-              </div>
-              <div>
-                <div className="text-sm text-slate-500 dark:text-slate-400">Images Analyzed</div>
-                <div className="text-2xl font-bold dark:text-slate-100">{currentExperiment.images_analyzed}</div>
-              </div>
-              <div>
-                <div className="text-sm text-slate-500 dark:text-slate-400">Visual Elements Found</div>
-                <div className="text-2xl font-bold dark:text-slate-100">{currentExperiment.visual_elements_found}</div>
-              </div>
-            </div>
 
-            {currentExperiment.products_promoted.length > 0 && (
-              <div>
-                <div className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Top Products Promoted</div>
-                <div className="flex flex-wrap gap-2">
-                  {currentExperiment.products_promoted.slice(0, 10).map((product, idx) => (
-                    <span key={idx} className="rounded-full bg-blue-100 px-3 py-1 text-xs text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                      {product}
-                    </span>
-                  ))}
+            {currentExperiment.key_features && (
+              <div className="space-y-4">
+                <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">Key Features & Recommendations</h3>
+                  
+                  {currentExperiment.key_features.summary && (
+                    <div className="mb-4 p-3 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                      <p className="text-sm text-blue-800 dark:text-blue-200">{currentExperiment.key_features.summary}</p>
+                    </div>
+                  )}
+
+                  {currentExperiment.key_features.key_features && currentExperiment.key_features.key_features.length > 0 && (
+                    <div className="mb-4">
+                      <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Key Features</h4>
+                      <ul className="list-disc list-inside space-y-1 text-sm text-slate-600 dark:text-slate-300">
+                        {currentExperiment.key_features.key_features.map((feature, idx) => (
+                          <li key={idx}>{feature}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {currentExperiment.key_features.patterns && Object.keys(currentExperiment.key_features.patterns).length > 0 && (
+                    <div className="mb-4">
+                      <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Common Patterns</h4>
+                      <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                        {currentExperiment.key_features.patterns.visual && (
+                          <div>
+                            <span className="font-semibold">Visual: </span>
+                            <span>{currentExperiment.key_features.patterns.visual}</span>
+                          </div>
+                        )}
+                        {currentExperiment.key_features.patterns.messaging && (
+                          <div>
+                            <span className="font-semibold">Messaging: </span>
+                            <span>{currentExperiment.key_features.patterns.messaging}</span>
+                          </div>
+                        )}
+                        {currentExperiment.key_features.patterns.design && (
+                          <div>
+                            <span className="font-semibold">Design: </span>
+                            <span>{currentExperiment.key_features.patterns.design}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {currentExperiment.key_features.recommendations && currentExperiment.key_features.recommendations.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Recommendations</h4>
+                      <ul className="list-disc list-inside space-y-1 text-sm text-slate-600 dark:text-slate-300">
+                        {currentExperiment.key_features.recommendations.map((rec, idx) => (
+                          <li key={idx}>{rec}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -244,13 +216,6 @@ LIMIT 20`);
                     {experimentResults.campaign_analyses.map((campaign, idx) => (
                       <div key={idx} className="rounded border border-slate-200 dark:border-slate-700 p-3 text-sm dark:bg-slate-800">
                         <div className="font-semibold dark:text-slate-100">{campaign.campaign_name || campaign.campaign_id}</div>
-                        {campaign.metrics && (
-                          <div className="mt-2 text-xs text-slate-600 dark:text-slate-300">
-                            Open Rate: {((campaign.metrics.open_rate || 0) * 100).toFixed(2)}% | 
-                            Conversion: {((campaign.metrics.conversion_rate || 0) * 100).toFixed(2)}% |
-                            Revenue: ${(campaign.metrics.revenue || 0).toFixed(2)}
-                          </div>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -263,7 +228,7 @@ LIMIT 20`);
                         <div className="mt-1 text-xs text-slate-600 dark:text-slate-300">{image.overall_description}</div>
                         {image.dominant_colors && image.dominant_colors.length > 0 && (
                           <div className="mt-2 flex gap-1 flex-wrap">
-                            {image.dominant_colors.slice(0, 5).map((color, cidx) => (
+                            {image.dominant_colors.slice(0, 5).map((color: string, cidx: number) => (
                               <span key={cidx} className="rounded px-2 py-1 text-xs bg-slate-100 dark:bg-slate-700 dark:text-slate-300">
                                 {color}
                               </span>

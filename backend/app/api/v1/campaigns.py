@@ -2,7 +2,8 @@
 import logging
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
+from pydantic import BaseModel, Field
 
 from fastapi import APIRouter, HTTPException
 
@@ -12,9 +13,73 @@ from ...schemas.campaigns import (
     EmailCampaignsListResponse,
 )
 from ...services.campaign_generation_service import CampaignGenerationService
+from ...services.vector_db_service import VectorDBService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class VectorSearchRequest(BaseModel):
+    """Request to search campaigns in vector database."""
+    query: str = Field(..., description="Natural language query to search for campaigns")
+    collection_name: Optional[str] = Field(None, description="Optional collection name (default: klaviyo_campaigns)")
+    num_results: int = Field(10, description="Number of results to return", ge=1, le=50)
+
+
+class VectorSearchResponse(BaseModel):
+    """Response from vector database search."""
+    campaigns: List[Dict[str, Any]] = Field(default_factory=list, description="List of matching campaigns")
+    total_found: int = Field(0, description="Total number of campaigns found")
+    query: str = Field(..., description="The search query used")
+
+
+@router.get("/collections", response_model=List[str], summary="List all available vector database collections")
+async def list_collections() -> List[str]:
+    """Get a list of all available collections in the vector database."""
+    logger.info("Listing all vector database collections")
+    
+    try:
+        from ...services.vector_db_service import list_all_collections
+        collections = list_all_collections()
+        return collections
+    except Exception as e:
+        logger.exception(f"Failed to list collections: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to list collections: {str(e)}")
+
+
+@router.post("/search", response_model=VectorSearchResponse, summary="Search campaigns in vector database")
+async def search_campaigns(payload: VectorSearchRequest) -> VectorSearchResponse:
+    """
+    Search for campaigns in the vector database using natural language.
+    
+    This endpoint uses semantic similarity to find campaigns that match your query.
+    Examples:
+    - "high performing email campaigns"
+    - "campaigns with high conversion rates"
+    - "product launch campaigns"
+    - "campaigns promoting outdoor gear"
+    """
+    logger.info(f"Searching campaigns: query={payload.query[:100]}, collection={payload.collection_name}, num_results={payload.num_results}")
+    
+    try:
+        collection_name = payload.collection_name or "klaviyo_campaigns"
+        vector_db_service = VectorDBService(collection_name=collection_name)
+        
+        similar_campaigns = vector_db_service.search_similar_campaigns(
+            query_text=payload.query,
+            n_results=payload.num_results,
+        )
+        
+        logger.info(f"Found {len(similar_campaigns)} campaigns matching query")
+        
+        return VectorSearchResponse(
+            campaigns=similar_campaigns,
+            total_found=len(similar_campaigns),
+            query=payload.query,
+        )
+    except Exception as e:
+        logger.exception(f"Failed to search campaigns: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Campaign search failed: {str(e)}")
 
 
 @router.post("/generate", response_model=EmailCampaignResponse, summary="Generate a new email campaign")

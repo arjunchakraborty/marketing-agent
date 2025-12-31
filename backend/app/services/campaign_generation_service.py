@@ -1,6 +1,7 @@
 """Service for generating email campaigns using AI."""
 import json
 import logging
+from operator import truediv
 import uuid
 from datetime import datetime
 from typing import Dict, List, Optional, Any
@@ -22,9 +23,9 @@ logger = logging.getLogger(__name__)
 class CampaignGenerationService:
     """Service for generating email campaigns."""
 
-    def __init__(self, llm_provider: Optional[str] = None) -> None:
+    def __init__(self) -> None:
         """Initialize the campaign generation service."""
-        self.intelligence_service = IntelligenceService(llm_provider=llm_provider)
+        self.intelligence_service = IntelligenceService()
         self.llm_service = self.intelligence_service.llm_service
         self.rag_service = RAGCampaignService()
         self.html_service = HTMLTemplateService()
@@ -88,43 +89,6 @@ class CampaignGenerationService:
         campaign_insights = {}
         past_campaign_references = []
 
-        if use_past_campaigns:
-            logger.info("Retrieving similar past campaigns using RAG")
-            search_query = f"{objective}"
-            if products:
-                search_query += f" products: {', '.join(products)}"
-            if tone:
-                search_query += f" tone: {tone}"
-
-            past_campaigns = self.rag_service.retrieve_similar_campaigns(
-                query=search_query,
-                objective=objective,
-                products=products,
-                tone=tone,
-                num_results=num_similar_campaigns,
-            )
-
-            if past_campaigns:
-                logger.info(f"Retrieved {len(past_campaigns)} similar campaigns")
-                campaign_insights = self.rag_service.extract_campaign_insights(past_campaigns)
-
-                # Build past campaign references
-                for camp in past_campaigns:
-                    insights_used = []
-                    analysis = camp.get("analysis", {})
-                    if analysis.get("campaign_name"):
-                        insights_used.append(f"Campaign name pattern: {analysis['campaign_name']}")
-                    if analysis.get("open_rate"):
-                        insights_used.append(f"Open rate: {analysis['open_rate']}")
-
-                    past_campaign_references.append(
-                        PastCampaignReference(
-                            campaign_id=camp.get("campaign_id", ""),
-                            campaign_name=analysis.get("campaign_name"),
-                            similarity_score=camp.get("similarity_score", 0.0),
-                            insights_used=insights_used[:3],
-                        )
-                    )
 
         # Step 2: Build enhanced prompt with RAG insights
         prompt = self._build_email_generation_prompt_with_rag(
@@ -143,8 +107,66 @@ class CampaignGenerationService:
             past_campaign_text_samples=self.rag_service.get_campaign_text_samples(past_campaigns) if past_campaigns else [],
         )
 
-        # Step 3: Generate email content using LLM
+        # Step 3: Generate hero image if requested (before email content generation)
+        hero_image_url = None
+        generate_hero_image = True
+        if generate_hero_image:
+            logger.info("Generating hero image with campaign insights")
+            
+            # Build enhanced hero image prompt using campaign insights
+            hero_prompt_parts = []
+            
+            # Base prompt from user input or objective
+            if hero_image_prompt:
+                hero_prompt_parts.append(hero_image_prompt)
+            else:
+                hero_prompt_parts.append(f"{objective} email hero image")
+            
+            # Add product information
+            if products:
+                hero_prompt_parts.append(f"featuring {', '.join(products[:2])}")
+            
+            # Enhance with visual insights from past campaigns
+            if campaign_insights:
+                # Add color palette insights
+                if campaign_insights.get("color_palettes"):
+                    top_colors = campaign_insights["color_palettes"][:3]
+                    hero_prompt_parts.append(f"using colors: {', '.join(top_colors)}")
+                
+                # Add visual element insights
+                if campaign_insights.get("visual_elements"):
+                    top_elements = campaign_insights["visual_elements"][:2]
+                    hero_prompt_parts.append(f"with visual style: {', '.join(top_elements)}")
+            
+            # Add design guidance if provided
+            if design_guidance:
+                hero_prompt_parts.append(f"design style: {design_guidance[:100]}")
+            
+            # Combine all parts into final prompt
+            hero_prompt = ", ".join(hero_prompt_parts)
+
+            
+            
+            # Generate hero image using image generation service
+            try:
+                hero_image_url = self.image_service.generate_hero_image(
+                    prompt=hero_prompt,
+                    style=tone,
+                    size="1200x600",  # Email hero image standard size
+                )
+                if hero_image_url:
+                    logger.info(f"Successfully generated hero image: {hero_image_url}")
+                else:
+                    logger.warning("Hero image generation returned None, continuing without hero image")
+            except Exception as e:
+                logger.error(f"Failed to generate hero image: {str(e)}", exc_info=True)
+                # Continue without hero image if generation fails
+                hero_image_url = None
+
+        # Step 4: Generate email content using LLM
         email_data = self._generate_email_content(prompt)
+
+        print(email_data)
 
         # Generate subject line variations
         subject_line_variations = self._generate_subject_lines(
@@ -153,25 +175,6 @@ class CampaignGenerationService:
             products=products,
             count=subject_line_suggestions,
         )
-
-        # Generate design recommendations
-        design_recommendations = self._generate_design_recommendations(
-            objective=objective,
-            tone=tone,
-            design_guidance=design_guidance,
-        )
-
-        # Step 4: Generate hero image if requested
-        hero_image_url = None
-        if generate_hero_image:
-            logger.info("Generating hero image")
-            hero_prompt = hero_image_prompt or f"{objective} email hero image"
-            if products:
-                hero_prompt += f" featuring {', '.join(products[:2])}"
-            hero_image_url = self.image_service.generate_hero_image(
-                prompt=hero_prompt,
-                style=tone,
-            )
 
         # Step 5: Generate design recommendations with RAG insights
         design_recommendations = self._generate_design_recommendations_with_rag(

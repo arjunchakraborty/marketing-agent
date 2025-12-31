@@ -85,6 +85,41 @@ export async function generateSqlFromPrompt(prompt: string) {
   }>(response);
 }
 
+export interface VectorSearchRequest {
+  query: string;
+  collection_name?: string;
+  num_results?: number;
+}
+
+export interface CampaignSearchResult {
+  campaign_id: string;
+  analysis: any;
+  metadata: any;
+  similarity_score: number;
+}
+
+export interface VectorSearchResponse {
+  campaigns: CampaignSearchResult[];
+  total_found: number;
+  query: string;
+}
+
+export async function searchCampaigns(
+  request: VectorSearchRequest
+): Promise<VectorSearchResponse> {
+  const response = await fetch(`${API_BASE}/v1/campaigns/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<VectorSearchResponse>(response);
+}
+
+export async function listCollections(): Promise<string[]> {
+  const response = await fetch(`${API_BASE}/v1/campaigns/collections`);
+  return handleResponse<string[]>(response);
+}
+
 // Data Upload API Functions
 export interface CampaignDataZipUploadResponse {
   status: string;
@@ -248,4 +283,178 @@ export async function uploadProductsZip(
     body: formData,
   });
   return handleResponse<ProductZipUploadResponse>(response);
+}
+
+// Experiments API Functions
+export interface ExperimentRunRequest {
+  prompt_query: string;
+  collection_name?: string;
+  experiment_name?: string;
+  num_campaigns?: number;
+}
+
+export interface KeyFeatures {
+  key_features: string[];
+  patterns: {
+    visual?: string;
+    messaging?: string;
+    design?: string;
+  };
+  recommendations: string[];
+  summary: string;
+}
+
+export interface ExperimentRunResponse {
+  experiment_run_id: string;
+  status: string;
+  campaigns_analyzed: number;
+  images_analyzed: number;
+  visual_elements_found: number;
+  campaign_ids: string[];
+  products_promoted: string[];
+  key_features?: KeyFeatures;
+  error?: string;
+}
+
+export async function runExperiment(
+  request: ExperimentRunRequest
+): Promise<ExperimentRunResponse> {
+  const response = await fetch(`${API_BASE}/v1/experiments/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<ExperimentRunResponse>(response);
+}
+
+export interface ExperimentResultsResponse {
+  experiment_run: {
+    experiment_run_id: string;
+    name: string | null;
+    description: string | null;
+    sql_query: string | null;
+    status: string;
+    config: any;
+    results_summary: any;
+    created_at: string | null;
+    updated_at: string | null;
+    completed_at: string | null;
+  };
+  campaign_analyses: any[];
+  image_analyses: any[];
+  correlations: any[];
+}
+
+export async function getExperimentResults(
+  experimentRunId: string
+): Promise<ExperimentResultsResponse> {
+  const response = await fetch(`${API_BASE}/v1/experiments/${experimentRunId}`);
+  return handleResponse<ExperimentResultsResponse>(response);
+}
+
+export async function listExperiments(): Promise<ExperimentResultsResponse[]> {
+  const response = await fetch(`${API_BASE}/v1/experiments/`);
+  return handleResponse<ExperimentResultsResponse[]>(response);
+}
+
+export interface CampaignGenerationRequest {
+  experiment_run_id: string;
+  target_products?: string[];
+  use_top_products?: boolean;
+  strategy_focus?: string;
+  num_campaigns?: number;
+}
+
+export interface CampaignGenerationResponse {
+  campaigns: Array<{
+    name: string;
+    channel: string;
+    objective: string;
+    expected_uplift: string;
+    summary: string;
+    talking_points: string[];
+  }>;
+  strategy_insights: string;
+  generated_at: string;
+}
+
+// Email Campaign Generation (using CampaignGenerationService)
+export interface EmailCampaignGenerationRequest {
+  campaign_name?: string;
+  objective: string;
+  audience_segment?: string;
+  products?: string[];
+  product_images?: string[];
+  tone?: string;
+  key_message?: string;
+  call_to_action?: string;
+  include_promotion?: boolean;
+  promotion_details?: string;
+  subject_line_suggestions?: number;
+  include_preview_text?: boolean;
+  design_guidance?: string;
+  use_past_campaigns?: boolean;
+  num_similar_campaigns?: number;
+  generate_hero_image?: boolean;
+  hero_image_prompt?: string;
+}
+
+export interface EmailContent {
+  subject_line: string;
+  preview_text?: string;
+  greeting: string;
+  body: string;
+  call_to_action: string;
+  closing: string;
+  footer?: string;
+  html_template?: string;
+  hero_image_url?: string;
+  product_image_urls?: string[];
+}
+
+export interface PastCampaignReference {
+  campaign_id: string;
+  campaign_name?: string;
+  similarity_score: number;
+  insights_used: string[];
+}
+
+export interface EmailCampaignResponse {
+  campaign_id: string;
+  campaign_name: string;
+  objective: string;
+  audience_segment?: string;
+  email_content: EmailContent;
+  subject_line_variations: string[];
+  design_recommendations: string[];
+  talking_points: string[];
+  expected_metrics?: {
+    estimated_open_rate?: string;
+    estimated_click_rate?: string;
+    estimated_conversion_rate?: string;
+  };
+  past_campaign_references: PastCampaignReference[];
+  generated_at: string;
+}
+
+export async function generateCampaigns(
+  request: CampaignGenerationRequest
+): Promise<CampaignGenerationResponse> {
+  const response = await fetch(`${API_BASE}/v1/experiments/generate-campaigns`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<CampaignGenerationResponse>(response);
+}
+
+export async function generateEmailCampaign(
+  request: EmailCampaignGenerationRequest
+): Promise<EmailCampaignResponse> {
+  const response = await fetch(`${API_BASE}/v1/campaigns/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<EmailCampaignResponse>(response);
 }
