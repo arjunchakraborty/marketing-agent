@@ -26,7 +26,6 @@ dependencies = [
     "torch",
     "torchvision",
     "transformers",
-    "opencv-python-headless",
     "chromadb",
 ]
 
