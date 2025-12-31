@@ -22,7 +22,7 @@ router = APIRouter()
 class VectorSearchRequest(BaseModel):
     """Request to search campaigns in vector database."""
     query: str = Field(..., description="Natural language query to search for campaigns")
-    collection_name: Optional[str] = Field(None, description="Optional collection name (default: klaviyo_campaigns)")
+    collection_name: Optional[str] = Field(None, description="Optional collection name (default: default_collection)")
     num_results: int = Field(10, description="Number of results to return", ge=1, le=50)
 
 
@@ -62,7 +62,7 @@ async def search_campaigns(payload: VectorSearchRequest) -> VectorSearchResponse
     logger.info(f"Searching campaigns: query={payload.query[:100]}, collection={payload.collection_name}, num_results={payload.num_results}")
     
     try:
-        collection_name = payload.collection_name or "klaviyo_campaigns"
+        collection_name = payload.collection_name or "default_collection"
         vector_db_service = VectorDBService(collection_name=collection_name)
         
         similar_campaigns = vector_db_service.search_similar_campaigns(
