@@ -329,3 +329,5 @@ class HTMLTemplateService:
             formatted += f"<p>{para}</p>\n"
         return formatted
 
+
+

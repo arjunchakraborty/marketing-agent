@@ -86,6 +86,8 @@ class ImageGenerationService:
         # Parse size
         width, height = self._parse_size(size)
 
+        sample_prompt = " Primary action shot of a person chopping vegetables outdoors.The elements include Hands of person (wearing patterned shirt + jeans), Green cutting board, Red onion slices, Tomato (whole),Lettuce (bunch) and Outdoor setting (grass, chair, natural light). color scheme is Natural outdoor palette (earthy tones + vibrant produce colors) and composition is Medium shot focused on hands/food, shallow depth of field"
+
         try:
             # Use custom workflow if provided, otherwise use default
             if workflow_override:
@@ -95,19 +97,13 @@ class ImageGenerationService:
                     if not workflow:
                         raise ValueError(f"Failed to load workflow from {workflow_override}")
                     # Apply prompt overrides to the loaded workflow
-                    workflow = self._apply_workflow_overrides(
-                        workflow,
-                        {
-                            "2:text": enhanced_prompt,  # Assuming node 2 is positive prompt
-                            "3:text": negative_prompt,  # Assuming node 3 is negative prompt
-                        }
-                    )
+                    
                 else:
                     # It's already a workflow dictionary
                     workflow = workflow_override
             else:
                 workflow = self._create_default_workflow(
-                    prompt=enhanced_prompt,
+                    prompt=sample_prompt,
                     negative_prompt=negative_prompt,
                     width=width,
                     height=height,
