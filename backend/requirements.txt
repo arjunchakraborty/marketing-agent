@@ -1,0 +1,22 @@
+# Production dependencies for Marketing Agent Backend
+# Generated from pyproject.toml
+
+fastapi
+uvicorn[standard]
+sqlmodel
+sqlalchemy
+pydantic-settings
+psycopg[binary]
+python-multipart
+pandas
+httpx
+openai>=1.0.0
+anthropic>=0.18.0
+numpy
+scikit-learn
+pillow
+torch
+torchvision
+transformers
+chromadb
+

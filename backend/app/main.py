@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api.routes import router as api_router
 from .core.config import settings
+from .core.middleware import APIKeyMiddleware
 from .models.kpi_cache import ensure_cache_tables
 from .db.session import engine
 
@@ -83,6 +84,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
         expose_headers=["*"],
     )
+    
+    # Add API key authentication middleware (after CORS to allow OPTIONS requests)
+    app.add_middleware(APIKeyMiddleware)
 
     app.include_router(api_router, prefix=settings.api_prefix)
 
