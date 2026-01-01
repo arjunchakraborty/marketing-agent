@@ -130,8 +130,15 @@ class VectorDBService:
         Returns:
             List of floats representing the embedding vector
         """
-        # Try OpenAI first if available
-        if settings.openai_api_key:
+        # Determine embedding provider based on settings
+        # Use OpenAI if API key is set and default_llm_provider is "openai"
+        use_openai = (
+            settings.openai_api_key 
+            and settings.openai_api_key.strip() 
+            and settings.default_llm_provider.lower() == "openai"
+        )
+        
+        if use_openai:
             try:
                 from openai import OpenAI
                 client = OpenAI(api_key=settings.openai_api_key)

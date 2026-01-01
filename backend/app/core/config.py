@@ -19,6 +19,12 @@ class Settings(BaseSettings):
 
     allowed_origins: List[str] = Field(default_factory=lambda: ["http://localhost:3000"])
 
+    # Security Configuration
+    api_keys: List[str] = Field(
+        default_factory=list,
+        description="List of valid API keys for authentication. Set via API_KEYS env var as comma-separated list. If empty, authentication is disabled (development mode)."
+    )
+
     # LLM Configuration
     openai_api_key: str = Field(default="", description="OpenAI API key for LLM workflows")
     openai_model: str = Field(default="gpt-4o-mini", description="OpenAI model for prompt-to-SQL and intelligence")
@@ -37,7 +43,7 @@ class Settings(BaseSettings):
 
     # ComfyUI Configuration
     comfyui_base_url: str = Field(default="http://localhost:8188", description="ComfyUI API base URL")
-    comfyui_workflow_path: Optional[str] = Field(default="/Users/a0c1fjt/work/marketing-agent/backend/storage/Flux-Dev-ComfyUI-Workflow-api.json", description="Path to default ComfyUI workflow JSON file")
+    comfyui_workflow_path: Optional[str] = Field(default="storage/workflow/Flux-Dev-ComfyUI-Workflow-api.json", description="Path to default ComfyUI workflow JSON file (relative to backend directory)")
     comfyui_model: str = Field(default="sd_xl_base_1.0.safetensors", description="ComfyUI model name for image generation")
     comfyui_timeout: int = Field(default=300, description="Timeout in seconds for ComfyUI image generation")
     comfyui_hero_image_size: str = Field(default="1200x600", description="Default size for hero images (format: WIDTHxHEIGHT)")
@@ -49,6 +55,15 @@ class Settings(BaseSettings):
     @field_validator("allowed_origins", mode="before")
     @classmethod
     def _coerce_allowed_origins(cls, value: Sequence[str] | str) -> List[str]:
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return list(value)
+
+    @field_validator("api_keys", mode="before")
+    @classmethod
+    def _coerce_api_keys(cls, value: Sequence[str] | str | None) -> List[str]:
+        if value is None:
+            return []
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return list(value)
