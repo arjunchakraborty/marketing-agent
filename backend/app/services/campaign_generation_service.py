@@ -174,7 +174,7 @@ class CampaignGenerationService:
         # Step 4: Generate email content using LLM
         email_data = self._generate_email_content(prompt)
 
-        print(email_data)
+        logger.debug(f"Generated email content: {email_data}")
 
         # Generate subject line variations
         subject_line_variations = self._generate_subject_lines(
