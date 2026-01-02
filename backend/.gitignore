@@ -1,7 +1,14 @@
-.venv/
-marketing_agent_backend.egg-info/
+# Backend-specific gitignore patterns
+# These are in addition to the root .gitignore
 
-# Ignore standard virtual environment folders
-venv/
-venv/**
+# Ensure .env files are ignored (even if root .gitignore is missed)
+.env
+.env.local
+.env.*
+!.env.example
 
+# Storage directories (contain user data)
+storage/
+*.db
+*.sqlite
+*.sqlite3

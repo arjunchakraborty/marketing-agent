@@ -207,7 +207,7 @@ class CampaignGenerationService:
             body=email_data.get("body", ""),
             call_to_action=email_data.get("call_to_action", call_to_action or "Learn More"),
             closing=email_data.get("closing", "Best regards,"),
-            footer=email_data.get("footer"),
+            footer=email_data.get("footer",""),
             hero_image_url=hero_image_url,
             product_image_urls=product_images,
         )

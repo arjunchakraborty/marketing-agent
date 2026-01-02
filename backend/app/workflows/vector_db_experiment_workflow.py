@@ -343,7 +343,8 @@ def run_vector_db_experiment(
         campaign_ids = []
         
         # Search in default collection or specified collection
-        collections_to_search = [collection_name] if collection_name else ["klaviyo_campaigns", "campaign_data"]
+        # Prioritize default_collection (matches ingestion default) over klaviyo_campaigns
+        collections_to_search = [collection_name] if collection_name else ["default_collection", "klaviyo_campaigns","campaigns_uco_gear"]
         
         for coll_name in collections_to_search:
             try:
