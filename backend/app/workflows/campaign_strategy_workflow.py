@@ -258,7 +258,8 @@ def run_campaign_strategy_experiment(
         vector_db_service = None
         if settings.enable_vector_search:
             try:
-                vector_db_service = VectorDBService(collection_name="klaviyo_campaigns")
+                # Use default_collection as default (matches ingestion default)
+                vector_db_service = VectorDBService(collection_name="default_collection")
                 logger.info("Vector DB service initialized successfully")
             except Exception as e:
                 logger.warning(f"Vector DB service not available: {str(e)}. Will fall back to image directory analysis.")

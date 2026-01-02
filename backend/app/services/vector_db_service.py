@@ -130,8 +130,15 @@ class VectorDBService:
         Returns:
             List of floats representing the embedding vector
         """
-        # Try OpenAI first if available
-        if settings.openai_api_key:
+        # Determine embedding provider based on settings
+        # Use OpenAI if API key is set and default_llm_provider is "openai"
+        use_openai = (
+            settings.openai_api_key 
+            and settings.openai_api_key.strip() 
+            and settings.default_llm_provider.lower() == "openai"
+        )
+        
+        if use_openai:
             try:
                 from openai import OpenAI
                 client = OpenAI(api_key=settings.openai_api_key)
@@ -383,55 +390,7 @@ class VectorDBService:
             })
         
         return similar_campaigns
-
-    def list_all_campaigns(self) -> List[str]:
-        """List all campaign IDs in the vector database."""
-        try:
-            results = self.collection.get(include=["metadatas"])
-            return [meta.get("campaign_id", "") for meta in results["metadatas"] if meta.get("campaign_id")]
-        except Exception as e:
-            logger.error(f"Failed to list campaigns: {str(e)}")
-            return []
-
-    def delete_campaign(self, campaign_id: str) -> None:
-        """Delete a campaign from the vector database."""
-        try:
-            self.collection.delete(ids=[campaign_id])
-            logger.info(f"Deleted campaign from vector DB: {campaign_id}")
-        except Exception as e:
-            logger.error(f"Failed to delete campaign: {str(e)}")
-
-
-def list_all_collections() -> List[str]:
-    """List all available collections in the vector database."""
-    if not CHROMADB_AVAILABLE:
-        logger.warning("ChromaDB not available, cannot list collections")
-        return []
     
-    try:
-        # Resolve vector_db_path relative to backend directory
-        vector_path = Path(settings.vector_db_path)
-        if not vector_path.is_absolute():
-            backend_dir = Path(__file__).parent.parent.parent
-            vector_db_path = backend_dir / vector_path
-        else:
-            vector_db_path = vector_path
-        
-        # Initialize ChromaDB client
-        client = chromadb.PersistentClient(
-            path=str(vector_db_path),
-            settings=ChromaSettings(anonymized_telemetry=False)
-        )
-        
-        # List all collections
-        collections = client.list_collections()
-        collection_names = [col.name for col in collections]
-        logger.info(f"Found {len(collection_names)} collections: {collection_names}")
-        return collection_names
-    except Exception as e:
-        logger.error(f"Failed to list collections: {str(e)}", exc_info=True)
-        return []
-
     def add_product_analysis(
         self,
         product_id: str,
@@ -584,4 +543,54 @@ def list_all_collections() -> List[str]:
             })
         
         return similar_products
+
+    def list_all_campaigns(self) -> List[str]:
+        """List all campaign IDs in the vector database."""
+        try:
+            results = self.collection.get(include=["metadatas"])
+            return [meta.get("campaign_id", "") for meta in results["metadatas"] if meta.get("campaign_id")]
+        except Exception as e:
+            logger.error(f"Failed to list campaigns: {str(e)}")
+            return []
+
+    def delete_campaign(self, campaign_id: str) -> None:
+        """Delete a campaign from the vector database."""
+        try:
+            self.collection.delete(ids=[campaign_id])
+            logger.info(f"Deleted campaign from vector DB: {campaign_id}")
+        except Exception as e:
+            logger.error(f"Failed to delete campaign: {str(e)}")
+
+
+def list_all_collections() -> List[str]:
+    """List all available collections in the vector database."""
+    if not CHROMADB_AVAILABLE:
+        logger.warning("ChromaDB not available, cannot list collections")
+        return []
+    
+    try:
+        # Resolve vector_db_path relative to backend directory
+        vector_path = Path(settings.vector_db_path)
+        if not vector_path.is_absolute():
+            backend_dir = Path(__file__).parent.parent.parent
+            vector_db_path = backend_dir / vector_path
+        else:
+            vector_db_path = vector_path
+        
+        # Initialize ChromaDB client
+        client = chromadb.PersistentClient(
+            path=str(vector_db_path),
+            settings=ChromaSettings(anonymized_telemetry=False)
+        )
+        
+        # List all collections
+        collections = client.list_collections()
+        collection_names = [col.name for col in collections]
+        logger.info(f"Found {len(collection_names)} collections: {collection_names}")
+        return collection_names
+    except Exception as e:
+        logger.error(f"Failed to list collections: {str(e)}", exc_info=True)
+        return []
+
+    
 

@@ -102,7 +102,7 @@ async def ingest_klaviyo_campaigns(payload: CampaignDataIngestionRequest) -> Cam
 async def upload_klaviyo_zip(
     file: UploadFile = File(..., description="Zip file containing campaign data CSV and image analysis JSONs. Business name will be extracted from zip filename if not provided."),
     table_name: str = "campaigns",
-    collection_name: Optional[str] = Query(None, description="Optional custom collection name. If not provided, uses 'campaign_data' or 'campaigns_{business_name}' if business_name is extracted."),
+    collection_name: Optional[str] = Query(None, description="Optional custom collection name. If not provided, uses 'default_collection' or 'campaigns_{business_name}' if business_name is extracted."),
     business_name: Optional[str] = Query(None, description="Optional name of the business. If not provided, extracted from zip filename."),
     overwrite_existing: bool = False,
 ) -> CampaignDataZipUploadResponse:
@@ -146,11 +146,25 @@ async def upload_klaviyo_zip(
             logger.info(f"Extracted business name '{business_name}' from uploaded filename '{original_filename}'")
         
         # Use business_name to create collection_name if not provided
+        # Priority: campaigns_{business_name} if business_name can be extracted, otherwise default_collection
         if not collection_name:
-            if business_name:
-                collection_name = f"campaigns_{business_name.lower().replace(' ', '_')}"
+            if business_name and business_name.strip():
+                # Normalize business name for collection name
+                normalized_business_name = business_name.lower().replace(' ', '_').replace('-', '_')
+                # Remove any remaining special characters
+                normalized_business_name = ''.join(c for c in normalized_business_name if c.isalnum() or c == '_')
+                collection_name = f"campaigns_{normalized_business_name}"
+                logger.info(f"Using collection name based on extracted business name: '{collection_name}'")
             else:
-                collection_name = "campaign_data"
+                collection_name = "default_collection"
+                logger.info(f"Business name could not be extracted, using default collection name: '{collection_name}'")
+        
+        # Ensure collection_name is never None or empty (final fallback)
+        if not collection_name or collection_name.strip() == "":
+            collection_name = "default_collection"
+            logger.warning(f"collection_name was empty, defaulting to '{collection_name}'")
+        
+        logger.info(f"Using collection name: '{collection_name}' for vector DB ingestion")
         
         # Extract zip file
         extract_dir = extract_zip_file(zip_file_path)
@@ -383,7 +397,7 @@ async def upload_csv_zip(
 @router.post("/upload/vector-db", response_model=ZipIngestionResponse, summary="Upload and load data into vector database from zip file")
 async def upload_vector_db_zip(
     file: UploadFile = File(..., description="Zip file containing CSV and image analysis JSONs"),
-    collection_name: str = "campaign_data",
+    collection_name: str = "default_collection",
     overwrite_existing: bool = False,
 ) -> ZipIngestionResponse:
     """

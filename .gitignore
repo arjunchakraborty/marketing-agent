@@ -15,7 +15,31 @@
 
 # Local database files
 backend/storage/
-backend/.env
+
+# Environment files and secrets - NEVER COMMIT THESE
+# Allow .env.example files (templates) but ignore all other .env files
+.env
+.env.*
+!**/.env.example
+**/.env
+**/.env.*
+!**/.env.example
+**/.env.local
+**/.env.*.local
+*.key
+*.pem
+*.p12
+secrets/
+*.secret
+*.secrets
+
+# Git configuration (if contains sensitive info)
 .gitignore
+
+# IDE settings (may contain paths)
 .vscode/settings.json
+.idea/
+
+# OS files
 .DS_Store
+Thumbs.db

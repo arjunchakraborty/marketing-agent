@@ -591,13 +591,22 @@ class ImageGenerationService:
         - Full format with links: {"nodes": [...], "links": [...]}
         
         Args:
-            workflow_path: Path to the workflow JSON file
+            workflow_path: Path to the workflow JSON file (relative paths resolved from backend directory)
             
         Returns:
             Normalized workflow dictionary (nodes only) or None if failed
         """
         try:
-            with open(workflow_path, "r") as f:
+            # Resolve relative paths relative to backend directory
+            workflow_file = Path(workflow_path)
+            if not workflow_file.is_absolute():
+                # Resolve relative to backend directory (parent of app directory)
+                backend_dir = Path(__file__).parent.parent.parent
+                workflow_file = backend_dir / workflow_path
+            else:
+                workflow_file = workflow_file
+            
+            with open(workflow_file, "r") as f:
                 data = json.load(f) 
             
             # Normalize the workflow structure
@@ -605,13 +614,13 @@ class ImageGenerationService:
             workflow = data 
             
             if workflow:
-                logger.info(f"Loaded workflow from {workflow_path} ({len(workflow)} nodes)")
+                logger.info(f"Loaded workflow from {workflow_file} ({len(workflow)} nodes)")
                 return workflow
             else:
-                logger.error(f"Could not extract workflow from {workflow_path}")
+                logger.error(f"Could not extract workflow from {workflow_file}")
                 return None
         except Exception as e:
-            logger.error(f"Failed to load workflow from {workflow_path}: {str(e)}")
+            logger.error(f"Failed to load workflow from {workflow_file}: {str(e)}")
             return None
 
     def _normalize_workflow(self, data: Dict) -> Optional[Dict]:
