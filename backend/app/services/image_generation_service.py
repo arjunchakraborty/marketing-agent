@@ -96,14 +96,27 @@ class ImageGenerationService:
                     workflow = self.load_workflow_from_file(workflow_override)
                     if not workflow:
                         raise ValueError(f"Failed to load workflow from {workflow_override}")
-                    # Apply prompt overrides to the loaded workflow
-                    
                 else:
                     # It's already a workflow dictionary
                     workflow = workflow_override
+                
+                # Apply prompt overrides to the loaded workflow
+                # Override node 6's text prompt with the enhanced prompt (if node 6 exists)
+                if "6" in workflow and isinstance(workflow["6"], dict):
+                    if workflow["6"].get("class_type") == "CLIPTextEncode":
+                        if "inputs" not in workflow["6"]:
+                            workflow["6"]["inputs"] = {}
+                        workflow["6"]["inputs"]["text"] = enhanced_prompt
+                        logger.info(f"Overrode node 6 text prompt with: {enhanced_prompt[:100]}...")
+                    else:
+                        # Node 6 exists but is not CLIPTextEncode, try to find CLIPTextEncode nodes
+                        workflow = self.override_text_prompts(workflow, positive_prompt=enhanced_prompt, negative_prompt=negative_prompt)
+                else:
+                    # Node 6 doesn't exist, use the automatic override method to find CLIPTextEncode nodes
+                    workflow = self.override_text_prompts(workflow, positive_prompt=enhanced_prompt, negative_prompt=negative_prompt)
             else:
                 workflow = self._create_default_workflow(
-                    prompt=sample_prompt,
+                    prompt=enhanced_prompt,
                     negative_prompt=negative_prompt,
                     width=width,
                     height=height,
