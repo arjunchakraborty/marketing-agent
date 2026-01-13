@@ -47,6 +47,15 @@ class Settings(BaseSettings):
     comfyui_model: str = Field(default="sd_xl_base_1.0.safetensors", description="ComfyUI model name for image generation")
     comfyui_timeout: int = Field(default=300, description="Timeout in seconds for ComfyUI image generation")
     comfyui_hero_image_size: str = Field(default="1200x600", description="Default size for hero images (format: WIDTHxHEIGHT)")
+    
+    # ComfyUI Cloud Configuration
+    comfyui_cloud_api_key: str = Field(
+        default="",
+        description="ComfyUI Cloud API key for running workflows on cloud infrastructure. Set via COMFYUI_CLOUD_API_KEY environment variable."
+    )
+    comfyui_cloud_base_url: str = Field(default="https://cloud.comfy.org", description="ComfyUI Cloud API base URL")
+    comfyui_cloud_timeout: int = Field(default=600, description="Timeout in seconds for ComfyUI Cloud workflow execution")
+    comfyui_cloud_poll_interval: int = Field(default=2, description="Polling interval in seconds for checking job status")
 
     # Logging Configuration
     log_level: str = Field(default="INFO", description="Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL")

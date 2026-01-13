@@ -1,1 +1,44 @@
-[]
+[
+ {
+  "RuleID": "curl-auth-header",
+  "Description": "Discovered a potential authorization token provided in a curl command header, which could compromise the curl accessed resource.",
+  "StartLine": 245,
+  "EndLine": 245,
+  "StartColumn": 2,
+  "EndColumn": 34,
+  "Match": "curl -H \"X-API-Key: your-api-key\"",
+  "Secret": "your-api-key",
+  "File": "backend/DEPLOYMENT.md",
+  "SymlinkFile": "",
+  "Commit": "9c54682273317bc430d771a076afdce25ffad0c9",
+  "Link": "https://github.com/arjunchakraborty/marketing-agent/blob/9c54682273317bc430d771a076afdce25ffad0c9/backend/DEPLOYMENT.md?plain=1#L245",
+  "Entropy": 3.251629,
+  "Author": "Kerrie Fitzgerald",
+  "Email": "kerrie@thedapperdogbox.com",
+  "Date": "2026-01-01T23:36:27Z",
+  "Message": "adding changes for containerization",
+  "Tags": [],
+  "Fingerprint": "9c54682273317bc430d771a076afdce25ffad0c9:backend/DEPLOYMENT.md:curl-auth-header:245"
+ },
+ {
+  "RuleID": "curl-auth-header",
+  "Description": "Discovered a potential authorization token provided in a curl command header, which could compromise the curl accessed resource.",
+  "StartLine": 251,
+  "EndLine": 251,
+  "StartColumn": 2,
+  "EndColumn": 45,
+  "Match": "curl -H \"Authorization: Bearer your-api-key\"",
+  "Secret": "your-api-key",
+  "File": "backend/DEPLOYMENT.md",
+  "SymlinkFile": "",
+  "Commit": "9c54682273317bc430d771a076afdce25ffad0c9",
+  "Link": "https://github.com/arjunchakraborty/marketing-agent/blob/9c54682273317bc430d771a076afdce25ffad0c9/backend/DEPLOYMENT.md?plain=1#L251",
+  "Entropy": 3.251629,
+  "Author": "Kerrie Fitzgerald",
+  "Email": "kerrie@thedapperdogbox.com",
+  "Date": "2026-01-01T23:36:27Z",
+  "Message": "adding changes for containerization",
+  "Tags": [],
+  "Fingerprint": "9c54682273317bc430d771a076afdce25ffad0c9:backend/DEPLOYMENT.md:curl-auth-header:251"
+ }
+]

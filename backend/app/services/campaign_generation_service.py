@@ -13,6 +13,7 @@ from ..db.session import engine
 from ..schemas.campaigns import EmailCampaignResponse, EmailContent, PastCampaignReference
 from .html_template_service import HTMLTemplateService
 from .image_generation_service import ImageGenerationService
+from .comfyui_cloud_service import ComfyUICloudService
 from .intelligence_service import IntelligenceService
 from .llm_service import LLMService
 from .rag_campaign_service import RAGCampaignService
@@ -29,6 +30,14 @@ class CampaignGenerationService:
         self.llm_service = self.intelligence_service.llm_service
         self.rag_service = RAGCampaignService()
         self.html_service = HTMLTemplateService()
+        # Use ComfyUI Cloud for image generation (fallback to local if needed)
+        try:
+            self.comfyui_cloud_service = ComfyUICloudService()
+            logger.info("ComfyUI Cloud service initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize ComfyUI Cloud service: {str(e)}. Will use local ComfyUI if available.")
+            self.comfyui_cloud_service = None
+        # Keep local ComfyUI service as fallback
         self.image_service = ImageGenerationService()
 
     def generate_email_campaign(
@@ -153,15 +162,27 @@ class CampaignGenerationService:
             
             hero_image_size = settings.comfyui_hero_image_size
             logger.info(f"Using hero image size from config: {hero_image_size}")
-            
-            # Generate hero image using image generation service
+
+            # Generate hero image using ComfyUI Cloud (fallback to local if cloud not available)
             try:
-                hero_image_url = self.image_service.generate_hero_image(
-                    prompt=hero_prompt,
-                    style=tone,
-                    size=hero_image_size,
-                    workflow_override=workflow_override,
-                )
+                if self.comfyui_cloud_service and self.comfyui_cloud_service.api_key:
+                    # Use ComfyUI Cloud for image generation
+                    hero_image_url = self._generate_hero_image_cloud(
+                        prompt=hero_prompt,
+                        style=tone,
+                        size=hero_image_size,
+                        workflow_override=workflow_override,
+                    )
+                else:
+                    # Fallback to local ComfyUI
+                    logger.info("ComfyUI Cloud not available, falling back to local ComfyUI")
+                    hero_image_url = self.image_service.generate_hero_image(
+                        prompt=hero_prompt,
+                        style=tone,
+                        size=hero_image_size,
+                        workflow_override=workflow_override,
+                    )
+                
                 if hero_image_url:
                     logger.info(f"Successfully generated hero image: {hero_image_url}")
                 else:
@@ -333,6 +354,148 @@ class CampaignGenerationService:
         prompt_parts.append("\nReturn the response as a JSON object with keys: subject_line, preview_text (if requested), greeting, body, call_to_action, closing, footer.")
 
         return "\n".join(prompt_parts)
+
+    def _generate_hero_image_cloud(
+        self,
+        prompt: str,
+        style: str,
+        size: str,
+        workflow_override: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        Generate a hero image using ComfyUI Cloud.
+        
+        Args:
+            prompt: Text prompt for image generation
+            style: Style preference (e.g., "professional", "modern", "vibrant")
+            size: Image size (format: "WIDTHxHEIGHT")
+            workflow_override: Optional path to workflow JSON file
+            
+        Returns:
+            Path to the generated image, or None if generation failed
+        """
+        if not self.comfyui_cloud_service or not self.comfyui_cloud_service.api_key:
+            logger.warning("ComfyUI Cloud service not available")
+            return None
+        
+        try:
+            # Parse size
+            width, height = 1024, 1024
+            if size:
+                try:
+                    parts = size.split("x")
+                    if len(parts) == 2:
+                        width = int(parts[0])
+                        height = int(parts[1])
+                except (ValueError, IndexError):
+                    logger.warning(f"Invalid size format '{size}', using default 1024x1024")
+            
+            # Enhance prompt with style
+            enhanced_prompt = prompt
+            if style:
+                enhanced_prompt = f"{prompt}, {style} style, high quality, marketing email hero image, professional photography"
+            
+            # Load workflow if provided
+            workflow = None
+            if workflow_override:
+                import json
+                from pathlib import Path
+                workflow_path = Path(workflow_override)
+                if workflow_path.exists():
+                    logger.info(f"Loading workflow from {workflow_path}")
+                    with open(workflow_path, "r") as f:
+                        workflow_data = json.load(f)
+                        # Handle different workflow formats
+                        if isinstance(workflow_data, dict):
+                            if "workflow" in workflow_data:
+                                workflow = workflow_data["workflow"]
+                            else:
+                                workflow = workflow_data
+                else:
+                    logger.warning(f"Workflow file not found: {workflow_path}, using default workflow")
+            
+            # If no workflow provided, use a simple default workflow structure
+            # Note: For ComfyUI Cloud, you'll need to provide a workflow that matches available nodes
+            # This is a simplified example - you may need to adjust based on your workflow
+            if not workflow:
+                logger.info("No workflow provided, ComfyUI Cloud requires a workflow file. Skipping image generation.")
+                return None
+            
+            # Modify workflow to use our prompt
+            # Find text encode node and update prompt
+            # This assumes the workflow has a CLIPTextEncode node (adjust node IDs as needed)
+            workflow = self._modify_workflow_prompt(workflow, enhanced_prompt, width, height)
+            
+            # Submit workflow to ComfyUI Cloud
+            logger.info(f"Submitting workflow to ComfyUI Cloud with prompt: {enhanced_prompt[:100]}...")
+            submit_result = self.comfyui_cloud_service.submit_workflow(workflow)
+            prompt_id = submit_result["prompt_id"]
+            logger.info(f"Workflow submitted, prompt_id: {prompt_id}")
+            
+            # Wait for completion
+            logger.info("Waiting for image generation to complete...")
+            status_info = self.comfyui_cloud_service.wait_for_completion(prompt_id, timeout=settings.comfyui_cloud_timeout)
+            
+            if status_info["status"] != "success":
+                raise RuntimeError(f"Workflow did not complete successfully: {status_info}")
+            
+            # Extract and download generated images
+            history_entry = status_info.get("history")
+            if not history_entry:
+                raise ValueError("No history found in completed workflow")
+            
+            output_files = self.comfyui_cloud_service.extract_outputs_from_history(history_entry)
+            if not output_files:
+                raise ValueError("No output files found in completed workflow")
+            
+            # Download the first output image
+            output_info = output_files[0]
+            logger.info(f"Downloading generated image: {output_info['filename']}")
+            downloaded_path = self.comfyui_cloud_service.download_output(
+                filename=output_info["filename"],
+                subfolder=output_info["subfolder"],
+                output_type=output_info["type"],
+            )
+            
+            logger.info(f"Successfully generated and downloaded hero image: {downloaded_path}")
+            return downloaded_path
+            
+        except Exception as e:
+            logger.error(f"Failed to generate hero image with ComfyUI Cloud: {str(e)}", exc_info=True)
+            return None
+
+    def _modify_workflow_prompt(self, workflow: Dict, prompt: str, width: int, height: int) -> Dict:
+        """
+        Modify a ComfyUI workflow to use the specified prompt and size.
+        
+        Args:
+            workflow: ComfyUI workflow dictionary
+            prompt: Text prompt for image generation
+            width: Image width
+            height: Image height
+            
+        Returns:
+            Modified workflow dictionary
+        """
+        # Try to find and update text encode nodes
+        # This is a basic implementation - you may need to adjust based on your workflow structure
+        for node_id, node_data in workflow.items():
+            if isinstance(node_data, dict) and node_data.get("class_type") == "CLIPTextEncode":
+                # Update positive prompt (usually node with text input)
+                if "text" in node_data.get("inputs", {}):
+                    # Check if this looks like a positive prompt node
+                    # You might want to be more specific about which node to update
+                    node_data["inputs"]["text"] = prompt
+                    logger.debug(f"Updated CLIPTextEncode node {node_id} with prompt")
+            
+            # Update image size if EmptyLatentImage node found
+            if isinstance(node_data, dict) and node_data.get("class_type") in ["EmptyLatentImage", "EmptySD3LatentImage"]:
+                if "inputs" in node_data:
+                    node_data["inputs"]["width"] = width
+                    node_data["inputs"]["height"] = height
+                    logger.debug(f"Updated size in node {node_id} to {width}x{height}")
+        
+        return workflow
 
     def _build_email_generation_prompt(
         self,
