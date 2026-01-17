@@ -151,8 +151,6 @@ class CampaignGenerationService:
                 workflow_override = settings.comfyui_workflow_path
                 logger.info(f"Using workflow override from config: {workflow_override}")
             
-            hero_image_size = settings.comfyui_hero_image_size
-            logger.info(f"Using hero image size from config: {hero_image_size}")
             
             # Generate hero image using image generation service
             try:
