@@ -6,6 +6,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from app.schemas.semantic_models import CampaignSemantic, EmailAnalysisSemantic
+
 from ..core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -162,7 +164,8 @@ class VectorDBService:
                 raise RuntimeError("Ollama server not available. Please start Ollama or configure OpenAI API key.")
             
             # Try different embedding models in order (use configured model first)
-            embedding_models = [settings.ollama_embedding_model, "nomic-embed-text", "nomic-embed", "all-minilm"]
+            # embedding_models = [settings.ollama_embedding_model, "nomic-embed-text", "nomic-embed", "all-minilm"]
+            embedding_models = [settings.ollama_embedding_model]
             # Remove duplicates while preserving order
             embedding_models = list(dict.fromkeys(embedding_models))
             
@@ -219,12 +222,14 @@ class VectorDBService:
         """
         # Ensure collection has correct dimension before adding
         self._ensure_collection_dimension()
+        """
         # Create text representation of analysis for embedding
         text_parts = []
         
         # Extract key information for embedding
         if "campaign_id" in analysis_data:
             text_parts.append(f"Campaign: {analysis_data['campaign_id']}")
+
         
         # Add summary information if available
         if "summary" in analysis_data:
@@ -235,7 +240,7 @@ class VectorDBService:
                 palette = summary["color_palette"]
                 if isinstance(palette, list):
                     text_parts.append(f"Color palette: {', '.join([str(c) for c in palette[:5]])}")
-        
+    
         # Add campaign metadata (from CSV)
         if "campaign_name" in analysis_data:
             text_parts.append(f"Campaign: {analysis_data['campaign_name']}")
@@ -258,6 +263,7 @@ class VectorDBService:
             brightness_values = []
             extracted_texts = []
             element_types = []
+            products = []
             
             for img_data in images:
                 # Handle both old format (direct image data) and new format (nested analysis)
@@ -274,13 +280,13 @@ class VectorDBService:
                     brightness_values.append(analysis["brightness"])
                 
                 # Extract text
-                if "extracted_text" in analysis and analysis["extracted_text"]:
-                    text_content = analysis["extracted_text"]
+                if "text_content" in analysis and analysis["text_content"]:
+                    text_content = analysis["text_content"]
                     if isinstance(text_content, str):
                         extracted_texts.append(text_content[:200])
                 
                 # Extract elements
-                if "elements" in analysis and isinstance(analysis["elements"], list):
+                if "elements" in analysis and isinstance(analysis["visual_elements"], list):
                     for elem in analysis["elements"][:5]:
                         if isinstance(elem, dict) and "type" in elem:
                             element_types.append(elem["type"])
@@ -303,21 +309,29 @@ class VectorDBService:
         # Create combined text
         text = " ".join(text_parts)
         
+        """
+
+        campaign_semantic = CampaignSemantic.from_dict(analysis_data)
+        text = campaign_semantic.to_semantic_text()
+
+        print(f"Semantic text for campaign {campaign_id}: {text}")
         # Create embedding
+        # embedding = self.create_embedding(text)
         embedding = self.create_embedding(text)
         
         # Prepare metadata
         doc_metadata = {
             "campaign_id": campaign_id,
             "total_images": len(analysis_data.get("images", [])),
-            **(metadata or {})
+            **(metadata or {}),
+           # "products": campaign_semantic.products_promoted
         }
         
         # Store in vector database
         self.collection.add(
             ids=[campaign_id],
             embeddings=[embedding],
-            documents=[json.dumps(analysis_data, default=str)],
+            documents=[text],
             metadatas=[doc_metadata]
         )
         
@@ -378,7 +392,7 @@ class VectorDBService:
         # Format results
         similar_campaigns = []
         for i, campaign_id in enumerate(results["ids"][0]):
-            doc = json.loads(results["documents"][0][i])
+            doc = results["documents"][0][i]
             metadata = results["metadatas"][0][i]
             distance = results["distances"][0][i]
             

@@ -96,31 +96,9 @@ export function CampaignStrategyExperiment() {
                 placeholder="e.g., Q1 Campaign Analysis"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="num-campaigns">Number of Campaigns</Label>
-              <Input
-                id="num-campaigns"
-                type="number"
-                value={numCampaigns}
-                onChange={(e) => setNumCampaigns(parseInt(e.target.value) || 10)}
-                min={1}
-                max={50}
-              />
-            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="collection-name">Collection Name (Optional)</Label>
-            <Input
-              id="collection-name"
-              value={collectionName}
-              onChange={(e) => setCollectionName(e.target.value)}
-              placeholder="e.g., klaviyo_campaigns (leave empty to search all collections)"
-            />
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Specify a vector database collection to search. If not provided, searches default collections.
-            </p>
-          </div>
+
 
           {error && (
             <div className="rounded-md bg-red-50 p-4 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-300">

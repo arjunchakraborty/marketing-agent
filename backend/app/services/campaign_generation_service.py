@@ -145,20 +145,19 @@ class CampaignGenerationService:
             # Combine all parts into final prompt
             hero_prompt = ", ".join(hero_prompt_parts)
 
-            # Get settings from config
+                        # Get settings from config
             workflow_override = None
             if settings.comfyui_workflow_path:
                 workflow_override = settings.comfyui_workflow_path
-                logger.info(f"Using workflow override from config: {workflow_override}")
-            
+                logger.info(f"Using workflow override from config: {workflow_override}")                
             
             # Generate hero image using image generation service
             try:
                 hero_image_url = self.image_service.generate_hero_image(
                     prompt=hero_prompt,
                     style=tone,
-                    size=hero_image_size,
                     workflow_override=workflow_override,
+                     # Email hero image standard size
                 )
                 if hero_image_url:
                     logger.info(f"Successfully generated hero image: {hero_image_url}")
@@ -205,7 +204,7 @@ class CampaignGenerationService:
             body=email_data.get("body", ""),
             call_to_action=email_data.get("call_to_action", call_to_action or "Learn More"),
             closing=email_data.get("closing", "Best regards,"),
-            footer=email_data.get("footer",""),
+            footer=email_data.get("footer"),
             hero_image_url=hero_image_url,
             product_image_urls=product_images,
         )

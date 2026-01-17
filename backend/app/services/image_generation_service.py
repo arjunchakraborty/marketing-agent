@@ -1,12 +1,17 @@
 """Service for generating images using ComfyUI workflows."""
+import asyncio
 import json
 import logging
+import shutil
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Dict, List, Optional
 
 import httpx
+
+from app.services.comfyui_cloud_service import ComfyUICloudService
 
 from ..core.config import settings
 
@@ -18,35 +23,53 @@ class ImageGenerationService:
 
     def __init__(self) -> None:
         """Initialize the image generation service."""
-        self.comfyui_base_url = settings.comfyui_base_url
+        self.use_cloud = bool(settings.comfyui_cloud_base_url and settings.comfyui_cloud_api_key)
         self.comfyui_available = False
         self.client_id = str(uuid.uuid4())
         self.available_models = []
-
-        # Check ComfyUI availability
-        try:
-            response = httpx.get(f"{self.comfyui_base_url}/system_stats", timeout=5.0)
-            response.raise_for_status()
-            self.comfyui_available = True
-            logger.info(f"ComfyUI available at {self.comfyui_base_url}")
-            
-            # Try to get available models
+        
+        if self.use_cloud:
             try:
-                models_response = httpx.get(f"{self.comfyui_base_url}/object_info", timeout=5.0)
-                models_response.raise_for_status()
-                object_info = models_response.json()
-                if "CheckpointLoaderSimple" in object_info:
-                    checkpoint_info = object_info["CheckpointLoaderSimple"]
-                    if "input" in checkpoint_info and "required" in checkpoint_info["input"]:
-                        if "ckpt_name" in checkpoint_info["input"]["required"]:
-                            ckpt_info = checkpoint_info["input"]["required"]["ckpt_name"]
-                            if isinstance(ckpt_info, list):
-                                self.available_models = ckpt_info
-                                logger.info(f"Found {len(self.available_models)} available models")
+                self.cloud_service = ComfyUICloudService()
+                self.comfyui_available = True
+                logger.info(f"ComfyUI Cloud service initialized with base URL: {self.cloud_service.base_url}")
+            except ValueError as e:
+                logger.error(f"Invalid ComfyUI Cloud configuration: {str(e)}")
+                self.use_cloud = False
+                self.cloud_service = None
             except Exception as e:
-                logger.warning(f"Could not fetch available models: {str(e)}")
-        except Exception as e:
-            logger.warning(f"ComfyUI not available at {self.comfyui_base_url}: {str(e)}")
+                logger.error(f"Failed to initialize ComfyUI Cloud service: {str(e)}", exc_info=True)
+                self.use_cloud = False
+                self.cloud_service = None
+        else:
+            self.cloud_service = None
+        
+        if not self.use_cloud:
+            self.comfyui_base_url = settings.comfyui_base_url
+            # Check ComfyUI availability
+            try:
+                response = httpx.get(f"{self.comfyui_base_url}/system_stats", timeout=5.0)
+                response.raise_for_status()
+                self.comfyui_available = True
+                logger.info(f"ComfyUI available at {self.comfyui_base_url}")
+                
+                # Try to get available models
+                try:
+                    models_response = httpx.get(f"{self.comfyui_base_url}/object_info", timeout=5.0)
+                    models_response.raise_for_status()
+                    object_info = models_response.json()
+                    if "CheckpointLoaderSimple" in object_info:
+                        checkpoint_info = object_info["CheckpointLoaderSimple"]
+                        if "input" in checkpoint_info and "required" in checkpoint_info["input"]:
+                            if "ckpt_name" in checkpoint_info["input"]["required"]:
+                                ckpt_info = checkpoint_info["input"]["required"]["ckpt_name"]
+                                if isinstance(ckpt_info, list):
+                                    self.available_models = ckpt_info
+                                    logger.info(f"Found {len(self.available_models)} available models")
+                except Exception as e:
+                    logger.warning(f"Could not fetch available models: {str(e)}")
+            except Exception as e:
+                logger.warning(f"ComfyUI not available at {self.comfyui_base_url}: {str(e)}")
 
     def generate_hero_image(
         self,
@@ -281,6 +304,107 @@ class ImageGenerationService:
         Returns:
             Path to the generated image
         """
+        if self.use_cloud and self.cloud_service:
+            return self._execute_workflow_cloud(workflow, output_path)
+        else:
+            return self._execute_workflow_local(workflow, output_path)
+    
+    def _execute_workflow_cloud(
+        self,
+        workflow: Dict,
+        output_path: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        Execute a ComfyUI workflow using ComfyUI Cloud service.
+        
+        Args:
+            workflow: ComfyUI workflow dictionary
+            output_path: Optional path to save the image
+            
+        Returns:
+            Path to the generated image
+        """
+        try:
+            # Check if we're in an async context (running event loop)
+            try:
+                loop = asyncio.get_running_loop()
+                # We're in an async context, run in a thread to avoid event loop conflict
+                with ThreadPoolExecutor() as executor:
+                    future = executor.submit(
+                        self._run_async_workflow,
+                        workflow
+                    )
+                    promptId = future.result()
+                    
+            except RuntimeError:
+                # No running event loop, safe to use asyncio.run()
+                asyncio.run(
+                    self.cloud_service.execute_workflow(
+                        workflow=workflow,
+                        output_dir=None,  # Let the service handle default directory
+                    )
+                )
+            
+            
+            downloaded_files = self.cloud_service.download_output(promptId,"generated_images",output_path)
+            if not downloaded_files:
+                logger.error("No output files returned from ComfyUI Cloud")
+                return None
+            else:
+                return downloaded_files[0]
+
+            # If output_path is specified, move/copy the first file there
+            if output_path:
+                source_path = Path(downloaded_files[0])
+                target_path = Path(output_path)
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Copy the file to the desired location
+                shutil.copy2(source_path, target_path)
+                logger.info(f"Copied generated image to {target_path}")
+                return str(target_path)
+            
+            # Return the first downloaded file
+            logger.info(f"Generated image saved to {downloaded_files[0]}")
+            return downloaded_files[0]
+            
+        except Exception as e:
+            logger.error(f"ComfyUI Cloud workflow execution failed: {str(e)}", exc_info=True)
+            return None
+    
+    def _run_async_workflow(self, workflow: Dict) -> List[str]:
+        """
+        Helper method to run async workflow in a new event loop.
+        This is used when called from within an existing event loop.
+        
+        Args:
+            workflow: ComfyUI workflow dictionary
+            
+        Returns:
+            List of downloaded file paths
+        """
+        return asyncio.run(
+            self.cloud_service.execute_workflow(
+                workflow=workflow,
+                output_dir=None,
+            )
+        )
+    
+    def _execute_workflow_local(
+        self,
+        workflow: Dict,
+        output_path: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        Execute a ComfyUI workflow using local ComfyUI API.
+        
+        Args:
+            workflow: ComfyUI workflow dictionary
+            output_path: Optional path to save the image
+            
+        Returns:
+            Path to the generated image
+        """
         # Step 1: Queue the prompt
         prompt_data = {"prompt": workflow, "client_id": self.client_id}
         
@@ -485,24 +609,42 @@ class ImageGenerationService:
         4. Generates the new image
         """
         # Upload the reference image first if it's a local path
+        image_filename = None
         if Path(image_path).exists():
-            # Upload to ComfyUI
-            with open(image_path, "rb") as f:
-                files = {"image": f}
-                data = {"overwrite": "true"}
-                upload_response = httpx.post(
-                    f"{self.comfyui_base_url}/upload/image",
-                    files=files,
-                    data=data,
-                    timeout=30.0,
-                )
-                upload_response.raise_for_status()
-                upload_result = upload_response.json()
-                image_filename = upload_result["name"]
+            if self.use_cloud and self.cloud_service:
+                # Upload to ComfyUI Cloud
+                try:
+                    upload_result = self.cloud_service.upload_image(
+                        image_path=image_path,
+                        image_type="input",
+                        overwrite=True,
+                    )
+                    image_filename = upload_result.get("name")
+                    logger.info(f"Uploaded reference image to ComfyUI Cloud: {image_filename}")
+                except Exception as e:
+                    logger.error(f"Failed to upload image to ComfyUI Cloud: {str(e)}")
+                    raise
+            else:
+                # Upload to local ComfyUI
+                with open(image_path, "rb") as f:
+                    files = {"image": f}
+                    data = {"overwrite": "true"}
+                    upload_response = httpx.post(
+                        f"{self.comfyui_base_url}/upload/image",
+                        files=files,
+                        data=data,
+                        timeout=30.0,
+                    )
+                    upload_response.raise_for_status()
+                    upload_result = upload_response.json()
+                    image_filename = upload_result["name"]
         else:
             # Assume it's already in ComfyUI or is a URL
             # For URLs, you'd need to download and upload first
             image_filename = Path(image_path).name
+        
+        if not image_filename:
+            raise ValueError(f"Failed to upload or determine image filename for: {image_path}")
 
         # Generate unique node IDs
         checkpoint_loader = "1"
@@ -854,9 +996,14 @@ class ImageGenerationService:
             return []
         
         try:
-            response = httpx.get(f"{self.comfyui_base_url}/object_info", timeout=10.0)
-            response.raise_for_status()
-            object_info = response.json()
+            if self.use_cloud and self.cloud_service:
+                # Get models from ComfyUI Cloud
+                object_info = self.cloud_service.get_object_info()
+            else:
+                # Get models from local ComfyUI
+                response = httpx.get(f"{self.comfyui_base_url}/object_info", timeout=10.0)
+                response.raise_for_status()
+                object_info = response.json()
             
             if "CheckpointLoaderSimple" in object_info:
                 checkpoint_info = object_info["CheckpointLoaderSimple"]

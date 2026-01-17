@@ -43,8 +43,11 @@ def extract_key_features_from_campaigns(
         campaign_id = campaign.get("campaign_id", "unknown")
         metadata = campaign.get("metadata", {})
         
-        summary_parts = [f"Campaign ID: {campaign_id}"]
+        summary_parts = [analysis]
+        summary_parts.append(f"Metadata: {json.dumps(metadata)}")
         
+        
+        """
         # Add campaign name
         if "campaign_name" in analysis:
             summary_parts.append(f"Name: {analysis['campaign_name']}")
@@ -194,7 +197,8 @@ def extract_key_features_from_campaigns(
             if colors:
                 summary_parts.append(f"Colors: {', '.join(set(colors)[:5])}")
         
-        campaign_summaries.append(" | ".join(summary_parts))
+        
+    """
     
     # Create prompt for feature extraction
     prompt = f"""Analyze the following {len(campaigns)} marketing campaigns and identify:
@@ -204,7 +208,7 @@ def extract_key_features_from_campaigns(
 3. Recommendations: Generate text that can be used to prompt for creating a new email campaign visual incorporating the text and visual elements of the campaigns passed in
 
 Campaign Summaries:
-{chr(10).join(campaign_summaries[:20])}
+{chr(10).join(summary_parts)}
 
 Provide a structured analysis with:
 - Key Features (list 5-7 most important)
@@ -344,7 +348,7 @@ def run_vector_db_experiment(
         
         # Search in default collection or specified collection
         # Prioritize default_collection (matches ingestion default) over klaviyo_campaigns
-        collections_to_search = [collection_name] if collection_name else ["default_collection", "klaviyo_campaigns","campaigns_uco_gear"]
+        collections_to_search = [collection_name] if collection_name else ["UCO_Gear_campaigns"]
         
         for coll_name in collections_to_search:
             try:
@@ -353,7 +357,7 @@ def run_vector_db_experiment(
                 # Search for similar campaigns using the prompt
                 similar_campaigns = vector_db_service.search_similar_campaigns(
                     query_text=prompt_query,
-                    n_results=num_campaigns,
+                    n_results=1,
                 )
                 
                 if similar_campaigns:
@@ -388,7 +392,7 @@ def run_vector_db_experiment(
                 unique_campaigns[campaign_id] = campaign
             elif not campaign_id:
                 # If no campaign_id, use similarity score as key
-                unique_campaigns[f"unknown_{len(unique_campaigns)}"] = campaign
+                unique_campaigns[campaign.get("similarity_score")] = campaign
         
         campaigns_found = list(unique_campaigns.values())
         campaign_ids = list(unique_campaigns.keys())

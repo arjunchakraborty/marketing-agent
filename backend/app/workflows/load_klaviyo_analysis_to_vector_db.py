@@ -7,6 +7,8 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
+from numpy import true_divide
+
 from ..services.vector_db_service import VectorDBService
 
 logger = logging.getLogger(__name__)
@@ -103,9 +105,12 @@ def _convert_structured_analysis_to_expected_format(
         Converted image analysis result in expected format
     """
     analysis = img_data.get("analysis", {})
+    if analysis:
+        analysis = analysis.get("email_visual_elements", {})
     
     # Extract visual elements from structured format
     visual_elements = []
+    products = []
     
     # From header
     if "header" in analysis:
@@ -126,6 +131,7 @@ def _convert_structured_analysis_to_expected_format(
                 "layout": nav.get("layout", ""),
                 "color_scheme": nav.get("color_scheme", ""),
             })
+       
     
     # From hero_image
     if "hero_image" in analysis:
@@ -136,7 +142,13 @@ def _convert_structured_analysis_to_expected_format(
             "elements": hero.get("elements", []),
             "color_scheme": hero.get("color_scheme", ""),
             "composition": hero.get("composition", ""),
+            "products" : hero.get("products", [])
         })
+        if "products" in hero:
+            visual_elements
+            for prod in hero["products"]:
+                if not prod in products:
+                    products.append(prod)
     
     # From call_to_action_button
     if "call_to_action_button" in analysis:
@@ -158,7 +170,12 @@ def _convert_structured_analysis_to_expected_format(
                 "elements": prod_img.get("elements", []),
                 "color_scheme": prod_img.get("color_scheme", ""),
                 "composition": prod_img.get("composition", ""),
+                "products" : prod_img.get("products", [])
             })
+            if "products" in prod_img:
+                for prod in prod_img["products"]:
+                    if not prod in products:
+                        products.append(prod)
     
     # Extract dominant colors from background
     dominant_colors = []
@@ -180,13 +197,13 @@ def _convert_structured_analysis_to_expected_format(
     if "layout_structure" in analysis:
         composition_analysis = "\n".join(analysis["layout_structure"])
     
-    # Build overall description from design_tone and key elements
+    """ # Build overall description from design_tone and key elements
     overall_description_parts = []
     if "design_tone" in analysis:
         overall_description_parts.append(f"Design tone: {analysis['design_tone']}")
     if "hero_image" in analysis and analysis["hero_image"].get("description"):
         overall_description_parts.append(f"Hero: {analysis['hero_image']['description']}")
-    overall_description = " | ".join(overall_description_parts) if overall_description_parts else None
+    overall_description = " | ".join(overall_description_parts) if overall_description_parts else None """
     
     # Extract text content
     text_content_parts = []
@@ -200,6 +217,9 @@ def _convert_structured_analysis_to_expected_format(
         cta_text = analysis["call_to_action_button"].get("text", "")
         if cta_text:
             text_content_parts.append(f"CTA: {cta_text}")
+    if "text" in analysis and "content" in analysis["text"]:
+        text_content_parts.append(analysis["text"]["content"])
+            
     text_content = "\n".join(text_content_parts) if text_content_parts else None
     
     # Build marketing relevance from design_tone
@@ -212,16 +232,17 @@ def _convert_structured_analysis_to_expected_format(
         "image_name": img_data.get("image_name", ""),
         "image_path": img_data.get("image_path", ""),
         "visual_elements": visual_elements,
-        "dominant_colors": dominant_colors,
+        #"dominant_colors": dominant_colors,
         "composition_analysis": composition_analysis,
         "text_content": text_content,
-        "overall_description": overall_description,
+        #"overall_description": overall_description,
         "marketing_relevance": marketing_relevance,
         "email_features": [],  # Not available in structured format
         "feature_catalog": {},  # Not available in structured format
         # Keep original structured analysis for reference
         "original_analysis": analysis,
         "metadata": img_data.get("metadata", {}),
+        "products" : products
     }
     
     return converted
@@ -260,7 +281,9 @@ def load_image_analyses_from_folder(folder_path: str, convert_format: bool = Tru
     for json_file in json_files:
         try:
             with open(json_file, "r") as f:
-                data = json.load(f)
+                #data = json.load(f)
+                lines = [line.strip() for line in f.readlines()]
+                data = json.loads('\n'.join(lines))
             
             campaign_id = data.get("campaign_id", "").strip()
             if not campaign_id:
@@ -273,11 +296,13 @@ def load_image_analyses_from_folder(folder_path: str, convert_format: bool = Tru
             # Convert format if requested and if it's structured format
             if convert_format:
                 analysis = data.get("analysis", {})
+                if analysis:
+                    email_analysis = analysis.get("email_visual_elements", {})
                 is_structured_format = (
-                    "header" in analysis or 
-                    "hero_image" in analysis or 
-                    "call_to_action_button" in analysis or
-                    "product_images" in analysis
+                    "header" in email_analysis or 
+                    "hero_image" in email_analysis or 
+                    "call_to_action_button" in email_analysis or
+                    "product_images" in email_analysis
                 )
                 
                 if is_structured_format:
@@ -325,7 +350,7 @@ def load_klaviyo_analysis_to_vector_db(
     campaigns = load_campaigns_from_csv(csv_file_path)
     
     # Load image analyses from JSON files
-    image_analyses = load_image_analyses_from_folder(image_analysis_folder)
+    image_analyses = load_image_analyses_from_folder(image_analysis_folder,True)
     
     # Ensure collection_name is not None or empty
     if not collection_name or collection_name.strip() == "":
@@ -361,13 +386,21 @@ def load_klaviyo_analysis_to_vector_db(
             
             # Get image analyses for this campaign
             image_analysis_list = image_analyses.get(campaign_id, [])
+            products = list()
+            for analysis in image_analysis_list:
+                if "products" in analysis and analysis["products"] is not None:
+                    products.append(analysis["products"])
+            
             
             # Combine campaign data with image analyses
             combined_data = {
                 **campaign_data,
                 "images": image_analysis_list,
                 "total_image_analyses": len(image_analysis_list),
+                "products" : products
             }
+
+            logger.debug(combined_data)
             
             if image_analysis_list:
                 campaigns_with_images += 1
@@ -375,6 +408,14 @@ def load_klaviyo_analysis_to_vector_db(
                 campaigns_without_images += 1
             
             # Prepare metadata
+            # Flatten the nested product list
+            flattened_products = ""
+            for product_list in products:
+                if isinstance(product_list, list):
+                    flattened_products += ", ".join(product_list)
+                else:
+                    flattened_products += str(product_list)
+            
             metadata = {
                 "campaign_name": campaign_data.get("campaign_name", ""),
                 "subject": campaign_data.get("subject", ""),
@@ -383,6 +424,7 @@ def load_klaviyo_analysis_to_vector_db(
                 "revenue": campaign_data.get("revenue", 0.0),
                 "total_image_analyses": len(image_analysis_list),
                 "has_image_analysis": len(image_analysis_list) > 0,
+                "products": flattened_products
             }
             
             # Add to vector database
@@ -390,6 +432,7 @@ def load_klaviyo_analysis_to_vector_db(
                 campaign_id=campaign_id,
                 analysis_data=combined_data,
                 metadata=metadata,
+
             )
             
             loaded_count += 1

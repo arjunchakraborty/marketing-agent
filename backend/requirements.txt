@@ -19,4 +19,5 @@ torch
 torchvision
 transformers
 chromadb
+websockets
 

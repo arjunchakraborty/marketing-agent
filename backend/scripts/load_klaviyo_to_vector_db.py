@@ -19,17 +19,17 @@ def main():
     )
     parser.add_argument(
         "--csv",
-        default="/Users/kerrief/projects/marketing-agent/backend/storage/email_campaigns.csv",
+        default="/Users/a0c1fjt/work/data 2/UCO_Gear_campaigns/campaigns.csv",
         help="Path to email_campaigns.csv file",
     )
     parser.add_argument(
         "--image-folder",
-        default="/Users/kerrief/projects/marketing-agent/backend/image-analysis-extract",
+        default="/Users/a0c1fjt/work/data 2/UCO_Gear_campaigns/image-analysis-extract",
         help="Path to image-analysis-extract folder containing JSON files",
     )
     parser.add_argument(
         "--collection",
-        default="klaviyo_campaigns",
+        default="UCO_Gear_campaigns",
         help="Vector database collection name (default: klaviyo_campaigns)",
     )
     parser.add_argument(

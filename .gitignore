@@ -43,3 +43,7 @@ secrets/
 # OS files
 .DS_Store
 Thumbs.db
+backend/.env.example
+.vscode/launch.json
+.vscode/launch.json
+.vscode/launch.json

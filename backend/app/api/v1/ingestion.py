@@ -170,7 +170,7 @@ async def upload_klaviyo_zip(
         extract_dir = extract_zip_file(zip_file_path)
         
         # Find CSV file (look for email_campaigns.csv or any CSV file)
-        csv_file = find_file_in_directory(extract_dir, "email_campaigns.csv") or \
+        csv_file = find_file_in_directory(extract_dir, "campaigns.csv") or \
                    find_file_in_directory(extract_dir, "*.csv")
         
         if not csv_file:

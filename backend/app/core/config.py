@@ -43,10 +43,15 @@ class Settings(BaseSettings):
 
     # ComfyUI Configuration
     comfyui_base_url: str = Field(default="http://localhost:8188", description="ComfyUI API base URL")
-    comfyui_workflow_path: Optional[str] = Field(default="storage/workflow/Flux-Dev-ComfyUI-Workflow-api.json", description="Path to default ComfyUI workflow JSON file (relative to backend directory)")
+    comfyui_workflow_path: Optional[str] = Field(default="storage/Flux-Dev-ComfyUI-Workflow-api.json", description="Path to default ComfyUI workflow JSON file (relative to backend directory)")
     comfyui_model: str = Field(default="sd_xl_base_1.0.safetensors", description="ComfyUI model name for image generation")
     comfyui_timeout: int = Field(default=300, description="Timeout in seconds for ComfyUI image generation")
     comfyui_hero_image_size: str = Field(default="1200x600", description="Default size for hero images (format: WIDTHxHEIGHT)")
+    
+    # ComfyUI Cloud Configuration
+    comfyui_cloud_api_key: str = Field(default="", description="ComfyUI Cloud API key for cloud workflows")
+    comfyui_cloud_base_url: str = Field(default="", description="ComfyUI Cloud API base URL")
+    comfyui_cloud_timeout: int = Field(default=300, description="Timeout in seconds for ComfyUI Cloud workflow execution")
 
     # Logging Configuration
     log_level: str = Field(default="INFO", description="Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL")
