@@ -1,14 +1,18 @@
-# Cloud Build configuration for deploying to Cloud Run
-# Usage: gcloud builds submit --config cloudbuild.yaml
+# Cloud Build configuration for deploying to Cloud Run WITH IAM Authentication
+# Usage: gcloud builds submit --config cloudbuild-iam.yaml
+#
+# This configuration requires Google Cloud IAM authentication to invoke the service.
+# Users/service accounts must be granted roles/run.invoker permission.
 #
 # Prerequisites:
 # 1. Enable required APIs: Cloud Run, Cloud Build, Container Registry, Secret Manager
-# 2. Create secrets in Secret Manager (api-keys, openai-api-key, etc.)
+# 2. Create secrets in Secret Manager (if using for other configs)
 # 3. Grant Cloud Run service account access to secrets
-#
-# To customize deployment, set substitution variables:
-# gcloud builds submit --config cloudbuild.yaml \
-#   --substitutions=_REGION=us-west1,_MEMORY=4Gi,_CPU=4
+# 4. Grant IAM permissions to users/service accounts who need access:
+#    gcloud run services add-iam-policy-binding marketing-agent-backend \
+#      --region us-central1 \
+#      --member="user:user@example.com" \
+#      --role="roles/run.invoker"
 
 steps:
   # Build the container image
@@ -28,11 +32,8 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/marketing-agent-backend:latest']
   
-  # Deploy container image to Cloud Run
-  # IMPORTANT: Before deploying, update the following:
-  # 1. Set _ALLOWED_ORIGINS to your actual frontend domain(s)
-  # 2. If using Secret Manager, uncomment the --set-secrets line and update secret names
-  # 3. If not using secrets, remove --set-secrets and add --set-env-vars for API keys
+  # Deploy container image to Cloud Run WITH IAM authentication required
+  # KEY CHANGE: Removed --allow-unauthenticated, Cloud Run will require IAM auth
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -45,7 +46,8 @@ steps:
       - '${_REGION}'
       - '--platform'
       - 'managed'
-      - '--allow-unauthenticated'
+      # REMOVED: --allow-unauthenticated
+      # Cloud Run will now require Google Cloud IAM authentication
       - '--memory'
       - '${_MEMORY}'
       - '--cpu'
@@ -56,14 +58,10 @@ steps:
       - '${_MAX_INSTANCES}'
       - '--min-instances'
       - '${_MIN_INSTANCES}'
-      # Option 1: Use Secret Manager (recommended for production)
-      # Uncomment the following lines after creating secrets in Secret Manager:
+      # Note: API_KEYS can be omitted if you want to rely solely on Cloud Run IAM
+      # If you want both Cloud Run IAM + API keys (hybrid), uncomment below:
       # - '--set-secrets'
-      # - 'API_KEYS=api-keys:latest,OPENAI_API_KEY=openai-api-key:latest,ANTHROPIC_API_KEY=anthropic-api-key:latest'
-      # Option 2: Use environment variables (not recommended for secrets)
-      # Replace the line below with your actual API keys (⚠️ WARNING: visible in build logs)
-      # - '--set-env-vars'
-      # - 'API_KEYS=your-key-1,your-key-2,OPENAI_API_KEY=your-openai-key'
+      # - 'API_KEYS=api-keys:latest'
       # Set non-sensitive environment variables
       - '--set-env-vars'
       - 'ALLOWED_ORIGINS=${_ALLOWED_ORIGINS},LOG_LEVEL=${_LOG_LEVEL}'
@@ -77,9 +75,6 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 # Substitution variables with defaults
-# Override these when submitting the build:
-# gcloud builds submit --config cloudbuild.yaml \
-#   --substitutions=_REGION=us-west1,_ALLOWED_ORIGINS=https://example.com
 substitutions:
   _REGION: 'us-central1'
   _MEMORY: '2Gi'
@@ -89,4 +84,6 @@ substitutions:
   _MIN_INSTANCES: '0'
   _ALLOWED_ORIGINS: 'https://your-frontend-domain.com'
   _LOG_LEVEL: 'INFO'
+
+
 
