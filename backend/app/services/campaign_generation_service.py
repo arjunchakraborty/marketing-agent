@@ -93,14 +93,46 @@ class CampaignGenerationService:
 
         logger.info(f"Generating email campaign: id={campaign_id}, objective={objective}")
 
-        # Step 1: Retrieve similar past campaigns using RAG
-        past_campaigns = []
-        campaign_insights = {}
-        past_campaign_references = []
+        # Stage 1: RAG for Hero Image Generation
+        hero_image_url = None
+        
+        logger.info("Stage 1: Building RAG prompt for hero image generation")
+        hero_image_prompt = self._build_hero_image_rag_prompt(
+            objective=objective,
+            products=products,
+            product_images=product_images,
+            tone=tone,
+            design_guidance=design_guidance,
+            hero_image_prompt=hero_image_prompt,
+            use_past_campaigns=use_past_campaigns,
+            num_similar_campaigns=num_similar_campaigns,
+        )
+        # Get settings from config
+        workflow_override = None
+        if settings.comfyui_workflow_path:
+            workflow_override = settings.comfyui_workflow_path
+            logger.info(f"Using workflow override from config: {workflow_override}")                
+        
+        # Generate hero image using image generation service
+        try:
+            hero_image_url = self.image_service.generate_hero_image(
+                prompt=hero_image_prompt,
+                style=tone,
+                workflow_override=workflow_override,
+                size=settings.comfyui_hero_image_size,
+            )
+            if hero_image_url:
+                logger.info(f"Successfully generated hero image: {hero_image_url}")
+            else:
+                logger.warning("Hero image generation returned None, continuing without hero image")
+        except Exception as e:
+            logger.error(f"Failed to generate hero image: {str(e)}", exc_info=True)
+            # Continue without hero image if generation fails
+            hero_image_url = None
 
-
-        # Step 2: Build enhanced prompt with RAG insights
-        prompt = self._build_email_generation_prompt_with_rag(
+        # Stage 2: RAG for Email Content Generation
+        logger.info("Stage 2: Building RAG prompt for email content generation")
+        email_content_prompt = self._build_email_content_rag_prompt(
             objective=objective,
             audience_segment=audience_segment,
             products=products,
@@ -112,73 +144,12 @@ class CampaignGenerationService:
             subject_line_suggestions=subject_line_suggestions,
             include_preview_text=include_preview_text,
             design_guidance=design_guidance,
-            campaign_insights=campaign_insights,
-            past_campaign_text_samples=self.rag_service.get_campaign_text_samples(past_campaigns) if past_campaigns else [],
+            use_past_campaigns=use_past_campaigns,
+            num_similar_campaigns=num_similar_campaigns,
         )
 
-        # Step 3: Generate hero image if requested (before email content generation)
-        hero_image_url = None
-        generate_hero_image = True
-        if generate_hero_image:
-            logger.info("Generating hero image with campaign insights")
-            
-            # Build enhanced hero image prompt using campaign insights
-            hero_prompt_parts = []
-            
-            # Base prompt from user input or objective
-            if hero_image_prompt:
-                hero_prompt_parts.append(hero_image_prompt)
-            else:
-                hero_prompt_parts.append(f"{objective} email hero image")
-            
-            # Add product information
-            if products:
-                hero_prompt_parts.append(f"featuring {', '.join(products[:2])}")
-            
-            # Enhance with visual insights from past campaigns
-            if campaign_insights:
-                # Add color palette insights
-                if campaign_insights.get("color_palettes"):
-                    top_colors = campaign_insights["color_palettes"][:3]
-                    hero_prompt_parts.append(f"using colors: {', '.join(top_colors)}")
-                
-                # Add visual element insights
-                if campaign_insights.get("visual_elements"):
-                    top_elements = campaign_insights["visual_elements"][:2]
-                    hero_prompt_parts.append(f"with visual style: {', '.join(top_elements)}")
-            
-            # Add design guidance if provided
-            if design_guidance:
-                hero_prompt_parts.append(f"design style: {design_guidance[:100]}")
-            
-            # Combine all parts into final prompt
-            hero_prompt = ", ".join(hero_prompt_parts)
-
-                        # Get settings from config
-            workflow_override = None
-            if settings.comfyui_workflow_path:
-                workflow_override = settings.comfyui_workflow_path
-                logger.info(f"Using workflow override from config: {workflow_override}")                
-            
-            # Generate hero image using image generation service
-            try:
-                hero_image_url = self.image_service.generate_hero_image(
-                    prompt=hero_prompt,
-                    style=tone,
-                    workflow_override=workflow_override,
-                     # Email hero image standard size
-                )
-                if hero_image_url:
-                    logger.info(f"Successfully generated hero image: {hero_image_url}")
-                else:
-                    logger.warning("Hero image generation returned None, continuing without hero image")
-            except Exception as e:
-                logger.error(f"Failed to generate hero image: {str(e)}", exc_info=True)
-                # Continue without hero image if generation fails
-                hero_image_url = None
-
         # Step 4: Generate email content using LLM
-        email_data = self._generate_email_content(prompt)
+        email_data = self._generate_email_content(email_content_prompt)
 
         logger.debug(f"Generated email content: {email_data}")
 
@@ -190,12 +161,25 @@ class CampaignGenerationService:
             count=subject_line_suggestions,
         )
 
-        # Step 5: Generate design recommendations with RAG insights
+        # Step 5: Generate design recommendations (reuse insights from email content RAG)
+        # Retrieve insights again for design recommendations
+        design_campaign_insights = {}
+        if use_past_campaigns:
+            design_query = f"{objective} {tone} design visual style"
+            design_past_campaigns = self.rag_service.retrieve_similar_campaigns(
+                query=design_query,
+                objective=objective,
+                tone=tone,
+                num_results=num_similar_campaigns,
+            )
+            if design_past_campaigns:
+                design_campaign_insights = self.rag_service.extract_campaign_insights(design_past_campaigns)
+        
         design_recommendations = self._generate_design_recommendations_with_rag(
             objective=objective,
             tone=tone,
             design_guidance=design_guidance,
-            campaign_insights=campaign_insights,
+            campaign_insights=design_campaign_insights,
         )
 
         # Step 6: Generate talking points
@@ -254,13 +238,251 @@ class CampaignGenerationService:
             subject_line_variations=subject_line_variations,
             design_recommendations=design_recommendations,
             talking_points=talking_points,
-            past_campaign_references=past_campaign_references,
+            past_campaign_references=[],  # TODO: Populate from RAG results if needed
             expected_metrics={
                 "estimated_open_rate": "20-25%",
                 "estimated_click_rate": "3-5%",
                 "estimated_conversion_rate": "1-2%",
             },
         )
+
+    def _build_hero_image_rag_prompt(
+        self,
+        objective: str,
+        products: Optional[List[str]],
+        product_images: Optional[List[str]],
+        tone: str,
+        design_guidance: Optional[str],
+        hero_image_prompt: Optional[str],
+        use_past_campaigns: bool,
+        num_similar_campaigns: int,
+    ) -> str:
+        """
+        Build RAG-enhanced prompt for hero image generation.
+        
+        Stage 1: Focuses on visual/image aspects from past campaigns.
+        
+        Args:
+            objective: Campaign objective
+            products: Products to feature
+            product_images: Product image URLs/paths
+            tone: Visual tone/style
+            design_guidance: Design preferences
+            hero_image_prompt: Custom prompt override
+            use_past_campaigns: Whether to use RAG
+            num_similar_campaigns: Number of campaigns to retrieve
+            
+        Returns:
+            Enhanced prompt string for hero image generation
+        """
+        prompt_parts = []
+        
+        # Base prompt from user input or objective
+        if hero_image_prompt:
+            prompt_parts.append(hero_image_prompt)
+        else:
+            prompt_parts.append(f"{objective} email hero image")
+        
+        # Add product information
+        if products:
+            prompt_parts.append(f"featuring {', '.join(products[:2])}")
+        
+        # Add product images context if available
+        if product_images:
+            prompt_parts.append(f"inspired by product images: {len(product_images)} product(s)")
+        
+        # Retrieve visual-focused RAG insights
+        visual_insights = {}
+        visual_past_campaigns = []
+        if use_past_campaigns:
+            # Build query focused on visual aspects
+            visual_query = f"{objective} hero image visual style"
+            if products:
+                visual_query += f" {', '.join(products[:2])}"
+            if tone:
+                visual_query += f" {tone} tone"
+            
+            logger.info(f"Retrieving visual-focused campaigns for hero image: {visual_query}")
+            visual_past_campaigns = self.rag_service.retrieve_similar_campaigns(
+                query=visual_query,
+                objective=objective,
+                products=products,
+                tone=tone,
+                num_results=num_similar_campaigns,
+            )
+            
+            if visual_past_campaigns:
+                visual_insights = self.rag_service.extract_campaign_insights(visual_past_campaigns)
+                logger.info(f"Extracted visual insights: {len(visual_insights.get('color_palettes', []))} colors, {len(visual_insights.get('visual_elements', []))} visual elements")
+        
+        # Enhance with visual insights from past campaigns
+        if visual_insights:
+            # Add color palette insights
+            if visual_insights.get("color_palettes"):
+                top_colors = visual_insights["color_palettes"][:3]
+                prompt_parts.append(f"using colors: {', '.join(top_colors)}")
+            
+            # Add visual element insights
+            if visual_insights.get("visual_elements"):
+                top_elements = visual_insights["visual_elements"][:2]
+                prompt_parts.append(f"with visual style: {', '.join(top_elements)}")
+            
+            # Add image references if available
+            if visual_past_campaigns:
+                image_refs = self.rag_service.get_campaign_image_references(visual_past_campaigns)
+                if image_refs:
+                    # Reference successful visual styles
+                    prompt_parts.append("inspired by successful email hero image designs")
+        
+        # Add design guidance if provided
+        if design_guidance:
+            prompt_parts.append(f"design style: {design_guidance[:100]}")
+        
+        # Add standard hero image requirements
+        prompt_parts.append("high quality, marketing email hero image, professional photography")
+        prompt_parts.append(f"{tone} style")
+        
+        # Combine all parts into final prompt
+        hero_prompt = ", ".join(prompt_parts)
+        logger.debug(f"Hero image RAG prompt: {hero_prompt[:200]}...")
+        
+        return hero_prompt
+    
+    def _build_email_content_rag_prompt(
+        self,
+        objective: str,
+        audience_segment: Optional[str],
+        products: Optional[List[str]],
+        tone: str,
+        key_message: Optional[str],
+        call_to_action: Optional[str],
+        include_promotion: bool,
+        promotion_details: Optional[str],
+        subject_line_suggestions: int,
+        include_preview_text: bool,
+        design_guidance: Optional[str],
+        use_past_campaigns: bool,
+        num_similar_campaigns: int,
+    ) -> str:
+        """
+        Build RAG-enhanced prompt for email content generation.
+        
+        Stage 2: Focuses on text/content aspects from past campaigns.
+        
+        Args:
+            objective: Campaign objective
+            audience_segment: Target audience
+            products: Products to promote
+            tone: Email tone
+            key_message: Key message/value proposition
+            call_to_action: Desired CTA text
+            include_promotion: Whether to include promotions
+            promotion_details: Promotion details
+            subject_line_suggestions: Number of subject line variations
+            include_preview_text: Whether to generate preview text
+            design_guidance: Design preferences
+            use_past_campaigns: Whether to use RAG
+            num_similar_campaigns: Number of campaigns to retrieve
+            
+        Returns:
+            Enhanced prompt string for email content generation
+        """
+        prompt_parts = [
+            "Generate a complete email campaign with the following requirements:",
+            f"Objective: {objective}",
+        ]
+
+        if audience_segment:
+            prompt_parts.append(f"Target Audience: {audience_segment}")
+
+        if products:
+            prompt_parts.append(f"Products to Promote: {', '.join(products)}")
+
+        prompt_parts.append(f"Tone: {tone}")
+
+        if key_message:
+            prompt_parts.append(f"Key Message: {key_message}")
+
+        if call_to_action:
+            prompt_parts.append(f"Call to Action: {call_to_action}")
+
+        if include_promotion and promotion_details:
+            prompt_parts.append(f"Promotion: {promotion_details}")
+
+        if design_guidance:
+            prompt_parts.append(f"Design Guidance: {design_guidance}")
+
+        # Retrieve text-focused RAG insights
+        campaign_insights = {}
+        past_campaign_text_samples = []
+        if use_past_campaigns:
+            # Build query focused on text/content aspects
+            content_query = f"{objective} email content copywriting"
+            if products:
+                content_query += f" {', '.join(products[:2])}"
+            if tone:
+                content_query += f" {tone} tone"
+            
+            logger.info(f"Retrieving content-focused campaigns for email: {content_query}")
+            content_past_campaigns = self.rag_service.retrieve_similar_campaigns(
+                query=content_query,
+                objective=objective,
+                products=products,
+                tone=tone,
+                num_results=num_similar_campaigns,
+            )
+            
+            if content_past_campaigns:
+                campaign_insights = self.rag_service.extract_campaign_insights(content_past_campaigns)
+                past_campaign_text_samples = self.rag_service.get_campaign_text_samples(
+                    content_past_campaigns,
+                    max_samples=5
+                )
+                logger.info(f"Extracted content insights: {len(past_campaign_text_samples)} text samples, {len(campaign_insights.get('text_patterns', []))} text patterns")
+
+        # Add RAG insights
+        if campaign_insights:
+            prompt_parts.append("\n--- Insights from Past Successful Campaigns ---")
+            
+            if campaign_insights.get("color_palettes"):
+                prompt_parts.append(f"Successful color palettes used: {', '.join(campaign_insights['color_palettes'][:5])}")
+            
+            if campaign_insights.get("text_patterns"):
+                prompt_parts.append(f"Text patterns from successful campaigns:")
+                for pattern in campaign_insights["text_patterns"][:3]:
+                    prompt_parts.append(f"  - {pattern[:100]}")
+            
+            if campaign_insights.get("cta_styles"):
+                prompt_parts.append("CTA styles that worked well:")
+                for cta in campaign_insights["cta_styles"][:3]:
+                    prompt_parts.append(f"  - {cta.get('text', '')} ({cta.get('color', '')})")
+            
+            if campaign_insights.get("subject_line_patterns"):
+                prompt_parts.append("Subject line patterns that performed well:")
+                for pattern in campaign_insights["subject_line_patterns"][:3]:
+                    prompt_parts.append(f"  - {pattern[:100]}")
+
+        if past_campaign_text_samples:
+            prompt_parts.append("\n--- Text Samples from Past Campaigns (for inspiration) ---")
+            for sample in past_campaign_text_samples[:3]:
+                prompt_parts.append(f"  - {sample[:150]}")
+
+        prompt_parts.append("\nGenerate the following components:")
+        prompt_parts.append("- Subject line (compelling and clear, inspired by successful patterns)")
+        if include_preview_text:
+            prompt_parts.append("- Preview text (engaging, 50-100 characters)")
+        prompt_parts.append("- Greeting (personalized if possible)")
+        prompt_parts.append("- Body (2-3 paragraphs, engaging and clear, incorporating successful text patterns)")
+        prompt_parts.append("- Call to action (clear and action-oriented, using proven CTA styles)")
+        prompt_parts.append("- Closing (professional)")
+        prompt_parts.append("- Footer (optional, with unsubscribe info)")
+
+        prompt_parts.append("\nReturn the response as a JSON object with keys: subject_line, preview_text (if requested), greeting, body, call_to_action, closing, footer.")
+
+        final_prompt = "\n".join(prompt_parts)
+        logger.debug(f"Email content RAG prompt length: {len(final_prompt)} characters")
+        
+        return final_prompt
 
     def _build_email_generation_prompt_with_rag(
         self,
@@ -497,7 +719,7 @@ class CampaignGenerationService:
         design_guidance: Optional[str],
     ) -> str:
         """Build the prompt for email generation (without RAG)."""
-        return self._build_email_generation_prompt_with_rag(
+        return self._build_email_content_rag_prompt(
             objective=objective,
             audience_segment=audience_segment,
             products=products,
@@ -509,8 +731,8 @@ class CampaignGenerationService:
             subject_line_suggestions=subject_line_suggestions,
             include_preview_text=include_preview_text,
             design_guidance=design_guidance,
-            campaign_insights={},
-            past_campaign_text_samples=[],
+            use_past_campaigns=False,
+            num_similar_campaigns=0,
         )
 
     def _generate_email_content(self, prompt: str) -> Dict[str, str]:
