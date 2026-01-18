@@ -1,34 +1,23 @@
-name: Secret scanning (gitleaks)
-
+name: gitleaks
 on:
   push:
-    branches: [ main ]
+    branches: [main, master]
   pull_request:
-    branches: [ main ]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * *" # Optional: Daily scan at 4 AM
 
 jobs:
-  gitleaks-scan:
-    name: Run gitleaks secret scan
+  scan:
+    name: gitleaks
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-
-      - name: Run gitleaks
-        uses: zricethezav/gitleaks-action@v8
-        with:
-          # run detect over the working tree and produce a JSON report
-          args: detect --source=. --report-path=gitleaks-report.json --report-format=json --redact
+          fetch-depth: 0 # Clones the entire history for a full scan
+          
+      - uses: gitleaks/gitleaks-action@v2
         env:
-          # allow the action to access the repo (used by some gitleaks rules)
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload gitleaks report
-        uses: actions/upload-artifact@v4
-        with:
-          name: gitleaks-report
-          path: gitleaks-report.json
+          # Required only for Organization accounts
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }} 
