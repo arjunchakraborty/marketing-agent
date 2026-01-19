@@ -4,6 +4,15 @@ import argparse
 import sys
 from pathlib import Path
 
+# Check Python version (ChromaDB requires Python 3.12+)
+if sys.version_info < (3, 12):
+    print(f"ERROR: ChromaDB requires Python 3.12+, but you're using Python {sys.version_info.major}.{sys.version_info.minor}")
+    print("Please install Python 3.12 and recreate your virtual environment:")
+    print("  python3.12 -m venv .venv")
+    print("  source .venv/bin/activate")
+    print("  pip install -e '.[dev]'")
+    sys.exit(1)
+
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -15,6 +24,7 @@ except ImportError as e:
     CHROMADB_AVAILABLE = False
     print(f"ERROR: ChromaDB not available: {type(e).__name__}: {str(e)}")
     print("Install with: pip install chromadb")
+    print("Note: ChromaDB requires Python 3.12+")
     sys.exit(1)
 
 from app.core.config import settings

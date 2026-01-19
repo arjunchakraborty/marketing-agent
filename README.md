@@ -15,23 +15,55 @@ strategy-agent-spec.md  Supplemental strategy guidance for future milestones
 
 ### Prerequisites
 
-- Python 3.11+
+- Python 3.11+ (Python 3.12+ required for ChromaDB vector search)
 - Node.js 20+
 - npm (bundled with Node.js)
 - PostgreSQL (local or container) if you plan to wire up persistence
-- **ChromaDB** (optional, for vector search) - see installation instructions below. The app can run without it, but vector search features will be unavailable.
+- **ChromaDB** (optional, for vector search) - **Requires Python 3.12+**. See installation instructions below. The app can run without it, but vector search features will be unavailable.
 - **Ollama** (optional, for local LLM) - https://ollama.ai - install if using local LLM instead of OpenAI/Anthropic
 
 ### Backend Setup
 
 **Important:** Always run backend commands from the `backend` directory to ensure Python can find the `app` module.
 
+**If using ChromaDB (vector search):** You need Python 3.12+. Install it first, then create the virtual environment:
+
+```bash
+# Check Python version (should be 3.12+ for ChromaDB)
+python3.12 --version
+
+# If Python 3.12 is not available, install it first:
+# macOS: brew install python@3.12
+# Linux: Use your distribution's package manager
+# Or download from: https://www.python.org/downloads/
+
+cd backend
+mkdir -p storage
+python3.12 -m venv .venv  # Creates .venv with Python 3.12
+source .venv/bin/activate  # Activate the virtual environment
+pip install -e '.[dev]'  # This installs all dependencies including chromadb
+
+# Initialize SQLite database
+python scripts/init_database.py
+
+# Initialize ChromaDB (optional, for vector search)
+python scripts/init_chromadb.py
+
+uvicorn app.main:app --reload
+```
+
+**If NOT using ChromaDB:** Python 3.11+ is sufficient:
+
 ```bash
 cd backend
 mkdir -p storage
 python -m venv .venv  # Creates .venv in the backend directory
 source .venv/bin/activate  # Activate the virtual environment
-pip install -e '.[dev]'  # This installs all dependencies including chromadb
+pip install -e '.[dev]'  # This installs all dependencies (ChromaDB will fail but app will work)
+
+# Initialize SQLite database
+python scripts/init_database.py
+
 uvicorn app.main:app --reload
 ```
 
@@ -41,23 +73,33 @@ uvicorn app.main:app --reload
 
 The error message will now show the actual exception type and details. Common causes:
 
-1. **Python environment mismatch** - uvicorn might be using a different Python than your venv:
+1. **Python version too old** - ChromaDB requires Python 3.12+:
+   ```bash
+   python --version  # Should show Python 3.12.x or higher
+   # If not, install Python 3.12 and recreate venv:
+   python3.12 -m venv .venv
+   source .venv/bin/activate
+   pip install -e '.[dev]'
+   ```
+
+2. **Python environment mismatch** - uvicorn might be using a different Python than your venv:
    ```bash
    which python  # Should show: backend/.venv/bin/python
+   python --version  # Should show Python 3.12.x
    echo $VIRTUAL_ENV  # Should show: backend/.venv
    # Make sure uvicorn uses the venv Python:
    which uvicorn  # Should also point to venv
    ```
 
-2. **Verify ChromaDB can be imported directly:**
+3. **Verify ChromaDB can be imported directly:**
    ```bash
    python -c "import chromadb; print(chromadb.__version__)"
    ```
-   If this works but uvicorn still shows the error, there's an environment mismatch.
+   If this fails, check Python version first (must be 3.12+).
 
-3. **Check the actual error message** - The startup logs will show the exception type (e.g., `ImportError`, `ModuleNotFoundError`, `AttributeError`). This helps diagnose the root cause.
+4. **Check the actual error message** - The startup logs will show the exception type (e.g., `ImportError`, `ModuleNotFoundError`, `AttributeError`). This helps diagnose the root cause.
 
-4. **Reinstall ChromaDB if needed:**
+5. **Reinstall ChromaDB if needed (with Python 3.12):**
    ```bash
    pip install chromadb --force-reinstall
    # Or reinstall all dependencies:
@@ -67,22 +109,63 @@ The error message will now show the actual exception type and details. Common ca
 **Directory Structure:**
 - `.venv/` - Virtual environment (created in `backend/` directory)
 - `storage/` - Data storage directory for databases and files
+  - `storage/marketing_agent.db` - SQLite database (created by `init_database.py`)
+  - `storage/vectors/` - ChromaDB vector database (created by `init_chromadb.py`)
 
 **Note:** If you encounter `ModuleNotFoundError: No module named 'app'`, make sure you're running commands from the `backend` directory. The `app` module must be in Python's import path.
 
-#### ChromaDB Installation (Optional)
+#### Database Initialization
 
-ChromaDB is included in the project dependencies (`pyproject.toml`) and should be installed automatically when you run `pip install -e '.[dev]'`. **ChromaDB is optional** - the app will start and run without it, but vector search features will be unavailable.
-
-**Initialize ChromaDB (recommended):**
-
-You can initialize ChromaDB with a default collection before using vector search features:
+The SQLite database needs to be initialized before first use. Run:
 
 ```bash
 cd backend
 source .venv/bin/activate
-python scripts/init_chromadb.py
+python scripts/init_database.py
 ```
+
+This creates all required tables:
+- Cache tables (KPI precomputed, prompt-to-SQL cache)
+- Campaign analysis tables (campaign_analysis, image_analysis_results, etc.)
+- Campaigns table (for Klaviyo data)
+- Dataset registry (for CSV ingestion)
+- Email campaigns table (for campaign generation)
+
+**Options:**
+- List existing tables: `python scripts/init_database.py --list`
+- Overwrite existing database (WARNING: deletes all data): `python scripts/init_database.py --overwrite`
+
+#### ChromaDB Installation (Optional)
+
+**Important:** ChromaDB requires Python 3.12+. Make sure you have Python 3.12 installed and activated before installing ChromaDB.
+
+ChromaDB is included in the project dependencies (`pyproject.toml`) and should be installed automatically when you run `pip install -e '.[dev]'` **with Python 3.12**. **ChromaDB is optional** - the app will start and run without it, but vector search features will be unavailable.
+
+**Setup steps for ChromaDB:**
+
+1. **Install Python 3.12** (if not already installed):
+   ```bash
+   # macOS
+   brew install python@3.12
+   
+   # Linux (Ubuntu/Debian)
+   sudo apt-get install python3.12 python3.12-venv
+   
+   # Or download from https://www.python.org/downloads/
+   ```
+
+2. **Create virtual environment with Python 3.12:**
+   ```bash
+   cd backend
+   python3.12 -m venv .venv
+   source .venv/bin/activate
+   pip install -e '.[dev]'  # This will install ChromaDB successfully
+   ```
+
+3. **Initialize ChromaDB (recommended):**
+   ```bash
+   python scripts/init_chromadb.py
+   ```
 
 This creates the default collection `UCO_Gear_Campaigns`. You can also:
 - Use a custom collection name: `python scripts/init_chromadb.py --collection my_campaigns`

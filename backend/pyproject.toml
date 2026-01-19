@@ -7,7 +7,7 @@ name = "marketing-agent-backend"
 version = "0.1.0"
 description = "FastAPI backend for marketing intelligence agent"
 authors = [{ name = "Marketing Agent Team" }]
-requires-python = ">=3.10"
+    requires-python = ">=3.11"  # Note: ChromaDB requires Python 3.12+
 dependencies = [
     "fastapi",
     "uvicorn[standard]",
