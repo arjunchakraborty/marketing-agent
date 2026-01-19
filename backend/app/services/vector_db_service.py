@@ -12,12 +12,16 @@ from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Store the import error for better error messages
+_CHROMADB_IMPORT_ERROR: Optional[Exception] = None
+
 try:
     import chromadb
     from chromadb.config import Settings as ChromaSettings
     CHROMADB_AVAILABLE = True
 except Exception as e:
     CHROMADB_AVAILABLE = False
+    _CHROMADB_IMPORT_ERROR = e
     logger.warning(f"ChromaDB not available: {type(e).__name__}: {str(e)}. Install with: pip install chromadb")
 
 
@@ -27,7 +31,10 @@ class VectorDBService:
     def __init__(self, collection_name: str = "campaign_analyses"):
         """Initialize vector database service."""
         if not CHROMADB_AVAILABLE:
-            raise RuntimeError("ChromaDB not available. Install with: pip install chromadb")
+            error_msg = "ChromaDB not available. Install with: pip install chromadb"
+            if _CHROMADB_IMPORT_ERROR:
+                error_msg += f"\nOriginal error: {type(_CHROMADB_IMPORT_ERROR).__name__}: {str(_CHROMADB_IMPORT_ERROR)}"
+            raise RuntimeError(error_msg)
         
         self.collection_name = collection_name
         
