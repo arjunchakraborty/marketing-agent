@@ -74,7 +74,22 @@ The error message will now show the actual exception type and details. Common ca
 
 ChromaDB is included in the project dependencies (`pyproject.toml`) and should be installed automatically when you run `pip install -e '.[dev]'`. **ChromaDB is optional** - the app will start and run without it, but vector search features will be unavailable.
 
-**No initialization required** - ChromaDB automatically creates the database directory and collections when first used. You don't need to run any setup workflows.
+**Initialize ChromaDB (recommended):**
+
+You can initialize ChromaDB with a default collection before using vector search features:
+
+```bash
+cd backend
+source .venv/bin/activate
+python scripts/init_chromadb.py
+```
+
+This creates the default collection `UCO_Gear_Campaigns`. You can also:
+- Use a custom collection name: `python scripts/init_chromadb.py --collection my_campaigns`
+- Overwrite existing collection: `python scripts/init_chromadb.py --overwrite`
+- List all collections: `python scripts/init_chromadb.py --list`
+
+**Note:** ChromaDB will also automatically create the database directory and collections when first used, so initialization is optional but recommended.
 
 If you see "ChromaDB not available" errors when trying to use vector search features, follow these steps:
 
