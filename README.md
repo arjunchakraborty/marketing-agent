@@ -19,7 +19,7 @@ strategy-agent-spec.md  Supplemental strategy guidance for future milestones
 - Node.js 20+
 - npm (bundled with Node.js)
 - PostgreSQL (local or container) if you plan to wire up persistence
-- **ChromaDB** (for vector search) - automatically installed with backend dependencies
+- **ChromaDB** (for vector search) - see installation instructions below
 - **Ollama** (optional, for local LLM) - https://ollama.ai - install if using local LLM instead of OpenAI/Anthropic
 
 ### Backend Setup
@@ -28,13 +28,81 @@ strategy-agent-spec.md  Supplemental strategy guidance for future milestones
 
 ```bash
 cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .[dev]
+mkdir -p storage
+python -m venv .venv  # Creates .venv in the backend directory
+source .venv/bin/activate  # Activate the virtual environment
+pip install -e '.[dev]'  # This installs all dependencies including chromadb
 uvicorn app.main:app --reload
 ```
 
+**Important:** Make sure your virtual environment is activated (you should see `(.venv)` in your terminal prompt) before running the app. 
+
+**If you see "ChromaDB not available" error:**
+
+The error message will now show the actual exception type and details. Common causes:
+
+1. **Python environment mismatch** - uvicorn might be using a different Python than your venv:
+   ```bash
+   which python  # Should show: backend/.venv/bin/python
+   echo $VIRTUAL_ENV  # Should show: backend/.venv
+   # Make sure uvicorn uses the venv Python:
+   which uvicorn  # Should also point to venv
+   ```
+
+2. **Verify ChromaDB can be imported directly:**
+   ```bash
+   python -c "import chromadb; print(chromadb.__version__)"
+   ```
+   If this works but uvicorn still shows the error, there's an environment mismatch.
+
+3. **Check the actual error message** - The startup logs will show the exception type (e.g., `ImportError`, `ModuleNotFoundError`, `AttributeError`). This helps diagnose the root cause.
+
+4. **Reinstall ChromaDB if needed:**
+   ```bash
+   pip install chromadb --force-reinstall
+   # Or reinstall all dependencies:
+   pip install -e '.[dev]' --force-reinstall --no-cache-dir
+   ```
+
+**Directory Structure:**
+- `.venv/` - Virtual environment (created in `backend/` directory)
+- `storage/` - Data storage directory for databases and files
+
 **Note:** If you encounter `ModuleNotFoundError: No module named 'app'`, make sure you're running commands from the `backend` directory. The `app` module must be in Python's import path.
+
+#### ChromaDB Installation
+
+ChromaDB is included in the project dependencies (`pyproject.toml`) and should be installed automatically when you run `pip install -e '.[dev]'`. However, if you see "ChromaDB not available" errors, follow these steps:
+
+1. **Ensure virtual environment is activated:**
+   ```bash
+   cd backend
+   source .venv/bin/activate
+   # You should see (.venv) in your prompt
+   ```
+
+2. **Install ChromaDB explicitly:**
+   ```bash
+   pip install chromadb
+   ```
+
+3. **Verify installation:**
+   ```bash
+   python -c "import chromadb; print(f'ChromaDB version: {chromadb.__version__}')"
+   ```
+
+4. **If still not working, reinstall all dependencies:**
+   ```bash
+   pip install -e '.[dev]' --force-reinstall --no-cache-dir
+   ```
+
+**Note:** The "requirement already met" message often means ChromaDB is installed in a different Python environment (system Python instead of your venv). Always activate the virtual environment before installing packages or running the app.
+
+If you plan to use Ollama for embeddings, you'll also need to pull the embedding model:
+
+```bash
+ollama pull nomic-embed-text
+```
 
 ### Frontend Setup
 

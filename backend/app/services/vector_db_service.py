@@ -16,9 +16,9 @@ try:
     import chromadb
     from chromadb.config import Settings as ChromaSettings
     CHROMADB_AVAILABLE = True
-except ImportError:
+except Exception as e:
     CHROMADB_AVAILABLE = False
-    logger.warning("ChromaDB not available. Install with: pip install chromadb")
+    logger.warning(f"ChromaDB not available: {type(e).__name__}: {str(e)}. Install with: pip install chromadb")
 
 
 class VectorDBService:
