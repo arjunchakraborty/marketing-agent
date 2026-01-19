@@ -17,8 +17,8 @@ class RAGCampaignService:
         self.vector_db_service = None
         if settings.enable_vector_search:
             try:
-                # Use default_collection as default (matches ingestion default)
-                self.vector_db_service = VectorDBService(collection_name="default_collection")
+                # Use UCO_Gear_Campaigns as default
+                self.vector_db_service = VectorDBService(collection_name="UCO_Gear_Campaigns")
                 logger.info("RAG Campaign Service initialized with vector DB")
             except Exception as e:
                 logger.warning(f"Vector DB not available for RAG: {str(e)}")

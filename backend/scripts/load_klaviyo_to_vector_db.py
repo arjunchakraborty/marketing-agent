@@ -29,7 +29,7 @@ def main():
     )
     parser.add_argument(
         "--collection",
-        default="UCO_Gear_campaigns",
+        default="UCO_Gear_Campaigns",
         help="Vector database collection name (default: klaviyo_campaigns)",
     )
     parser.add_argument(

@@ -45,160 +45,6 @@ def extract_key_features_from_campaigns(
         
         summary_parts = [analysis]
         summary_parts.append(f"Metadata: {json.dumps(metadata)}")
-        
-        
-        """
-        # Add campaign name
-        if "campaign_name" in analysis:
-            summary_parts.append(f"Name: {analysis['campaign_name']}")
-        
-        # Add performance metrics
-        if "open_rate" in analysis:
-            summary_parts.append(f"Open Rate: {analysis['open_rate']}")
-        if "click_rate" in analysis:
-            summary_parts.append(f"Click Rate: {analysis['click_rate']}")
-        if "revenue" in analysis:
-            summary_parts.append(f"Revenue: ${analysis['revenue']}")
-        
-        # Add image information
-        images = analysis.get("images", [])
-        if images:
-            summary_parts.append(f"Images: {len(images)}")
-            # Extract visual elements from images
-            visual_elements = []
-            colors = []
-            for img in images:
-                img_analysis = img.get("analysis", {}) if "analysis" in img else img
-                # Extract richer details from analysis JSON, following the structure in /image-analysis-extract/
-                # visual_elements, header, hero_image, call_to_action_button, product_images, product_blocks, buttons, etc.
-                # Collect visual elements in human-readable summaries for LLM
-
-                # Visual elements (semantic - across both 'visual_elements' and structured blocks)
-                extracted_visual_elements = []
-
-                # Standard 'visual_elements' field, if present
-                if "visual_elements" in img_analysis:
-                    for elem in img_analysis["visual_elements"]:
-                        if isinstance(elem, dict):
-                            elem_type = elem.get("element_type")
-                            desc = elem.get("description", "")
-                            if elem_type and desc:
-                                extracted_visual_elements.append(f"{elem_type}: {desc}")
-                            elif elem_type:
-                                extracted_visual_elements.append(elem_type)
-                            elif desc:
-                                extracted_visual_elements.append(desc)
-                        else:
-                            extracted_visual_elements.append(str(elem))
-
-                # Header (logo, navigation, tagline)
-                header = img_analysis.get("header", {})
-                if isinstance(header, dict):
-                    logo = header.get("logo", {})
-                    if logo:
-                        txt = logo.get("text", "")
-                        tagline = logo.get("tagline", "")
-                        color = logo.get("color", "")
-                        extracted_visual_elements.append(f"logo: {txt} {'- ' + tagline if tagline else ''} ({color})")
-                    navigation = header.get("navigation", {})
-                    if navigation:
-                        items = navigation.get("items", [])
-                        nav_desc = f"Navigation: {', '.join(items)}" if items else "Navigation"
-                        color_scheme = navigation.get("color_scheme", "")
-                        extracted_visual_elements.append(f"{nav_desc} ({color_scheme})")
-
-                # Hero image section
-                hero_image = img_analysis.get("hero_image", {})
-                if hero_image:
-                    desc = hero_image.get("description", "")
-                    elements = hero_image.get("elements", [])
-                    cscheme = hero_image.get("color_scheme", "")
-                    if desc:
-                        extracted_visual_elements.append(f"Hero image: {desc}")
-                    if elements:
-                        extracted_visual_elements.append(f"Hero image elements: {', '.join(elements)}")
-                    if cscheme:
-                        extracted_visual_elements.append(f"Hero image color scheme: {cscheme}")
-
-                # CTA Button
-                cta = img_analysis.get("call_to_action_button", {})
-                if cta:
-                    text = cta.get("text", "")
-                    color = cta.get("color", "")
-                    pos = cta.get("position", "")
-                    extracted_visual_elements.append(f"CTA button: '{text}' ({color}, {pos})")
-
-                # Product images
-                product_images = img_analysis.get("product_images", [])
-                for prodimg in product_images or []:
-                    desc = prodimg.get("description", "") if isinstance(prodimg, dict) else str(prodimg)
-                    if desc:
-                        extracted_visual_elements.append(f"Product image: {desc}")
-
-                # Product blocks
-                product_blocks = img_analysis.get("product_blocks", [])
-                for prodblock in product_blocks or []:
-                    title = prodblock.get("title", "") if isinstance(prodblock, dict) else ""
-                    if title:
-                        extracted_visual_elements.append(f"Product Block: {title}")
-
-                # Buttons
-                buttons = img_analysis.get("buttons", [])
-                for btn in buttons or []:
-                    text = btn.get("text", "") if isinstance(btn, dict) else str(btn)
-                    if text:
-                        extracted_visual_elements.append(f"Button: '{text}'")
-
-                # Text sections, if any (e.g., extracted from analysis)
-                text_sections = img_analysis.get("text_sections", [])
-                for section in text_sections or []:
-                    header_txt = section.get("header", "") if isinstance(section, dict) else ""
-                    summary = section.get("summary", "") if isinstance(section, dict) else str(section)
-                    if header_txt or summary:
-                        extracted_visual_elements.append(f"Text section: {header_txt} {summary}".strip())
-
-                # Any other keys of interest (e.g., testimonials, special banners)
-                if "testimonials" in img_analysis:
-                    for t in img_analysis["testimonials"] or []:
-                        text = t.get("text", "") if isinstance(t, dict) else str(t)
-                        if text:
-                            extracted_visual_elements.append(f"Testimonial: {text}")
-
-                # Dominant colors
-                if "dominant_colors" in img_analysis:
-                    for color in img_analysis["dominant_colors"]:
-                        if isinstance(color, dict):
-                            colors.append(color.get("color", ""))
-                        else:
-                            colors.append(str(color))
-
-                # Also gather color_scheme from nested hero/header/nav/cta
-                def collect_color_scheme(node):
-                    if isinstance(node, dict) and "color_scheme" in node and node["color_scheme"]:
-                        colors.append(str(node["color_scheme"]))
-                    if isinstance(node, dict):
-                        for v in node.values():
-                            collect_color_scheme(v)
-                    elif isinstance(node, list):
-                        for v in node:
-                            collect_color_scheme(v)
-                collect_color_scheme(img_analysis.get("hero_image", {}))
-                collect_color_scheme(img_analysis.get("header", {}))
-                collect_color_scheme(img_analysis.get("call_to_action_button", {}))
-
-                # Compile human-friendly summaries (deduplicated) for use in LLM
-                if extracted_visual_elements:
-                    summary_parts.append(f"Visual Elements: {', '.join(list(dict.fromkeys(extracted_visual_elements))[:7])}")
-                if colors:
-                    summary_parts.append(f"Colors: {', '.join(list(dict.fromkeys(colors))[:7])}")
-            
-            if visual_elements:
-                summary_parts.append(f"Visual Elements: {', '.join(set(visual_elements)[:5])}")
-            if colors:
-                summary_parts.append(f"Colors: {', '.join(set(colors)[:5])}")
-        
-        
-    """
     
     # Create prompt for feature extraction
     prompt = f"""Analyze the following {len(campaigns)} marketing campaigns and identify:
@@ -213,9 +59,10 @@ Campaign Summaries:
 Provide a structured analysis with:
 - Key Features (list 5-7 most important)
 - Common Patterns (describe visual, messaging, and design patterns)
-- Recommendations (generate text that can be used as a system prompt for generating new email campaign image incorporating the common patterns)
+- You can assume that each email would have this following structure - logo, navigation, Hero Image, Text and Call to Action.
+- Generate recommendations for each content sectiion of this email(generate text that can be used as a system prompt for generating new campaign email incorporating the common patterns)
 
-Return as JSON with keys: key_features (list), patterns (dict with keys: visual, messaging, design), recommendations (list)."""
+Return as JSON with keys: key_features (list), patterns (dict with keys: visual, messaging, design), and list of system prompts for generating each section hero_image, text, call_to_action separetly."""
 
     try:
         if not intelligence_service.llm_service:
@@ -273,6 +120,7 @@ Return as JSON with keys: key_features (list), patterns (dict with keys: visual,
                 response_obj.raise_for_status()
                 result = response_obj.json()
                 response = result.get("message", {}).get("content", "").strip()
+                logger.info(response)
             else:
                 raise ValueError(f"Unsupported provider: {llm_service.provider}")
         except Exception as e:
@@ -346,9 +194,8 @@ def run_vector_db_experiment(
         campaigns_found = []
         campaign_ids = []
         
-        # Search in default collection or specified collection
-        # Prioritize default_collection (matches ingestion default) over klaviyo_campaigns
-        collections_to_search = [collection_name] if collection_name else ["UCO_Gear_campaigns"]
+        # Search in specified collection or default to UCO_Gear_Campaigns
+        collections_to_search = [collection_name] if collection_name else ["UCO_Gear_Campaigns"]
         
         for coll_name in collections_to_search:
             try:

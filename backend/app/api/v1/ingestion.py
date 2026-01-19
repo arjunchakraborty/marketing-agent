@@ -63,10 +63,11 @@ async def ingest_csv(payload: CsvIngestionRequest) -> CsvIngestionResponse:
         warnings=result.get("warnings") or None,
     )
 
-
+"""
 @router.post("/klaviyo", response_model=CampaignDataIngestionResponse, summary="Ingest campaign data CSV")
 async def ingest_klaviyo_campaigns(payload: CampaignDataIngestionRequest) -> CampaignDataIngestionResponse:
-    """
+"""
+"""
     Ingest campaign data CSV file from a file path.
     
     The CSV should contain campaign data with columns like:
@@ -76,7 +77,8 @@ async def ingest_klaviyo_campaigns(payload: CampaignDataIngestionRequest) -> Cam
     - sent_at (date/time)
     
     Column names will be automatically normalized to match expected format.
-    """
+"""
+"""
     try:
         result = ingest_klaviyo_csv(
             csv_file_path=payload.file_path,
@@ -96,17 +98,18 @@ async def ingest_klaviyo_campaigns(payload: CampaignDataIngestionRequest) -> Cam
         raise HTTPException(status_code=404, detail=f"File not found: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Campaign data ingestion failed: {str(e)}")
-
-
+"""
+"""
 @router.post("/upload/klaviyo", response_model=CampaignDataZipUploadResponse, summary="Upload and ingest campaign data from zip file")
 async def upload_klaviyo_zip(
-    file: UploadFile = File(..., description="Zip file containing campaign data CSV and image analysis JSONs. Business name will be extracted from zip filename if not provided."),
+    file: UploadFile = File(..., description="Zip file containing campaign data CSV and image analysis JSONs."),
     table_name: str = "campaigns",
-    collection_name: Optional[str] = Query(None, description="Optional custom collection name. If not provided, uses 'default_collection' or 'campaigns_{business_name}' if business_name is extracted."),
-    business_name: Optional[str] = Query(None, description="Optional name of the business. If not provided, extracted from zip filename."),
+    collection_name: Optional[str] = Query(None, description="Collection name (defaults to 'UCO_Gear_Campaigns')."),
+    business_name: Optional[str] = Query(None, description="Optional name of the business (for metadata only)."),
     overwrite_existing: bool = False,
 ) -> CampaignDataZipUploadResponse:
-    """
+"""
+"""
     Upload a zip file containing campaign data and image analyses.
     
     Business name is extracted from the zip filename if not provided.
@@ -126,7 +129,8 @@ async def upload_klaviyo_zip(
     3. Clean up extracted files
     
     The zip file will be extracted, processed, and then deleted.
-    """
+"""
+"""
     zip_file_path = None
     extract_dir = None
     
@@ -138,31 +142,9 @@ async def upload_klaviyo_zip(
             tmp_file.write(content)
             zip_file_path = tmp_file.name
         
-        # If business_name not provided, extract from original filename
-        if not business_name:
-            from ...workflows.product_zip_ingestion import _extract_business_name_from_filename
-            # Extract business name from the original uploaded filename
-            business_name = _extract_business_name_from_filename(original_filename)
-            logger.info(f"Extracted business name '{business_name}' from uploaded filename '{original_filename}'")
-        
-        # Use business_name to create collection_name if not provided
-        # Priority: campaigns_{business_name} if business_name can be extracted, otherwise default_collection
-        if not collection_name:
-            if business_name and business_name.strip():
-                # Normalize business name for collection name
-                normalized_business_name = business_name.lower().replace(' ', '_').replace('-', '_')
-                # Remove any remaining special characters
-                normalized_business_name = ''.join(c for c in normalized_business_name if c.isalnum() or c == '_')
-                collection_name = f"campaigns_{normalized_business_name}"
-                logger.info(f"Using collection name based on extracted business name: '{collection_name}'")
-            else:
-                collection_name = "default_collection"
-                logger.info(f"Business name could not be extracted, using default collection name: '{collection_name}'")
-        
-        # Ensure collection_name is never None or empty (final fallback)
+        # Always use UCO_Gear_Campaigns collection
         if not collection_name or collection_name.strip() == "":
-            collection_name = "default_collection"
-            logger.warning(f"collection_name was empty, defaulting to '{collection_name}'")
+            collection_name = "UCO_Gear_Campaigns"
         
         logger.info(f"Using collection name: '{collection_name}' for vector DB ingestion")
         
@@ -272,7 +254,7 @@ async def upload_klaviyo_zip(
             cleanup_file(zip_file_path)
         if extract_dir:
             cleanup_directory(extract_dir)
-
+"""
 
 @router.post("/upload/shopify-integration", response_model=ZipIngestionResponse, summary="Upload and ingest Shopify integration data from zip file")
 async def upload_shopify_integration_zip(
@@ -397,7 +379,7 @@ async def upload_csv_zip(
 @router.post("/upload/vector-db", response_model=ZipIngestionResponse, summary="Upload and load data into vector database from zip file")
 async def upload_vector_db_zip(
     file: UploadFile = File(..., description="Zip file containing CSV and image analysis JSONs"),
-    collection_name: str = "default_collection",
+    collection_name: str = "UCO_Gear_Campaigns",
     overwrite_existing: bool = False,
 ) -> ZipIngestionResponse:
     """
@@ -424,7 +406,7 @@ async def upload_vector_db_zip(
         extract_dir = extract_zip_file(zip_file_path)
         
         # Find CSV file
-        csv_file = find_file_in_directory(extract_dir, "email_campaigns.csv") or \
+        csv_file = find_file_in_directory(extract_dir, "campaigns.csv") or \
                    find_file_in_directory(extract_dir, "*.csv")
         
         if not csv_file:
@@ -437,6 +419,18 @@ async def upload_vector_db_zip(
         image_analysis_folder = find_directory_in_directory(
             extract_dir, "image-analysis-extract"
         )
+
+        if not image_analysis_folder:
+            extract_path = Path(extract_dir)
+            # Search for folders with JSON files
+            for potential_folder in extract_path.rglob("*"):
+                if potential_folder.is_dir():
+                    logger.info(f"looking for images analysis in  folder: {potential_folder}")
+                    json_files = list(potential_folder.glob("*.json"))
+                    if json_files:
+                        logger.info(f"Found JSON files in folder: {potential_folder}")
+                        image_analysis_folder = str(potential_folder)
+                        break
         
         # If not found, check if JSON files are in root
         if not image_analysis_folder:

@@ -38,7 +38,7 @@ def extract_zip_file(zip_file_path: str, extract_to: Optional[str] = None) -> st
     logger.info(f"Extracting zip file {zip_file_path} to {extract_dir}")
     
     # Extract zip file
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+    with zipfile.ZipFile(zip_path, 'r', metadata_encoding='utf-8') as zip_ref:
         zip_ref.extractall(extract_dir)
     
     logger.info(f"Extracted {len(zip_ref.namelist())} files to {extract_dir}")

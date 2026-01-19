@@ -258,8 +258,8 @@ def run_campaign_strategy_experiment(
         vector_db_service = None
         if settings.enable_vector_search:
             try:
-                # Use default_collection as default (matches ingestion default)
-                vector_db_service = VectorDBService(collection_name="default_collection")
+                # Use UCO_Gear_Campaigns as default
+                vector_db_service = VectorDBService(collection_name="UCO_Gear_Campaigns")
                 logger.info("Vector DB service initialized successfully")
             except Exception as e:
                 logger.warning(f"Vector DB service not available: {str(e)}. Will fall back to image directory analysis.")

@@ -331,7 +331,7 @@ def load_image_analyses_from_folder(folder_path: str, convert_format: bool = Tru
 def load_klaviyo_analysis_to_vector_db(
     csv_file_path: str,
     image_analysis_folder: str,
-    collection_name: str = "default_collection",
+    collection_name: str = "UCO_Gear_Campaigns",
     overwrite_existing: bool = False,
 ) -> Dict[str, Any]:
     """
@@ -354,7 +354,7 @@ def load_klaviyo_analysis_to_vector_db(
     
     # Ensure collection_name is not None or empty
     if not collection_name or collection_name.strip() == "":
-        collection_name = "default_collection"
+        collection_name = "UCO_Gear_Campaigns"
         logger.warning(f"collection_name was empty in load_klaviyo_analysis_to_vector_db, defaulting to '{collection_name}'")
     
     logger.info(f"Initializing vector DB service with collection: '{collection_name}'")
@@ -472,7 +472,7 @@ def load_klaviyo_analysis_to_vector_db(
 def search_campaigns_by_similarity(
     query_text: str,
     n_results: int = 5,
-    collection_name: str = "default_collection",
+    collection_name: str = "UCO_Gear_Campaigns",
 ) -> Dict[str, Any]:
     """
     Search for campaigns similar to the query text.

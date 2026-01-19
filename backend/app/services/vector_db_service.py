@@ -396,11 +396,22 @@ class VectorDBService:
             metadata = results["metadatas"][0][i]
             distance = results["distances"][0][i]
             
+            # Try to parse document as JSON if it's a string
+            try:
+                if isinstance(doc, str):
+                    analysis = json.loads(doc)
+                else:
+                    analysis = doc
+            except (json.JSONDecodeError, TypeError):
+                # If parsing fails, use the document as-is
+                analysis = doc
+            
             similar_campaigns.append({
                 "campaign_id": campaign_id,
-                "analysis": doc,
+                "analysis": analysis,
                 "metadata": metadata,
                 "similarity_score": 1.0 - distance,  # Convert distance to similarity
+                "document": doc,  # Include raw document
             })
         
         return similar_campaigns
@@ -565,6 +576,48 @@ class VectorDBService:
             return [meta.get("campaign_id", "") for meta in results["metadatas"] if meta.get("campaign_id")]
         except Exception as e:
             logger.error(f"Failed to list campaigns: {str(e)}")
+            return []
+
+    def get_all_campaigns(self) -> List[Dict[str, Any]]:
+        """
+        Get all campaigns from the vector database with full documents.
+        
+        Returns:
+            List of all campaign analyses with full document data
+        """
+        try:
+            # Get all documents from the collection
+            results = self.collection.get(
+                include=["documents", "metadatas"]
+            )
+            
+            all_campaigns = []
+            for i, campaign_id in enumerate(results["ids"]):
+                doc = results["documents"][i]
+                metadata = results["metadatas"][i]
+                
+                # Try to parse document as JSON if it's a string
+                try:
+                    if isinstance(doc, str):
+                        analysis = json.loads(doc)
+                    else:
+                        analysis = doc
+                except (json.JSONDecodeError, TypeError):
+                    # If parsing fails, use the document as-is
+                    analysis = doc
+                
+                all_campaigns.append({
+                    "campaign_id": campaign_id,
+                    "analysis": analysis,
+                    "metadata": metadata,
+                    "similarity_score": 1.0,  # No similarity score for all documents
+                    "document": doc,  # Include raw document
+                })
+            
+            logger.info(f"Retrieved {len(all_campaigns)} campaigns from vector database")
+            return all_campaigns
+        except Exception as e:
+            logger.error(f"Failed to get all campaigns: {str(e)}", exc_info=True)
             return []
 
     def delete_campaign(self, campaign_id: str) -> None:

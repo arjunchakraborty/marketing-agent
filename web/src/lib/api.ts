@@ -86,9 +86,10 @@ export async function generateSqlFromPrompt(prompt: string) {
 }
 
 export interface VectorSearchRequest {
-  query: string;
+  query?: string;
   collection_name?: string;
   num_results?: number;
+  show_all?: boolean;
 }
 
 export interface CampaignSearchResult {
@@ -96,6 +97,7 @@ export interface CampaignSearchResult {
   analysis: any;
   metadata: any;
   similarity_score: number;
+  document?: string | any; // Full document content
 }
 
 export interface VectorSearchResponse {
@@ -247,7 +249,7 @@ export async function uploadVectorDbZip(
 ): Promise<VectorDbZipUploadResponse> {
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("collection_name", "campaign_data");
+  formData.append("collection_name", "UCO_Gear_Campaigns");
   formData.append("overwrite_existing", "true");
 
   const response = await fetch(`${API_BASE}/v1/ingestion/upload/vector-db`, {

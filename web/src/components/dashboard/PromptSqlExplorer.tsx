@@ -12,18 +12,21 @@ export function PromptSqlExplorer() {
   const [result, setResult] = useState<VectorSearchResponse | null>(null);
   const [collectionName, setCollectionName] = useState("");
   const [numResults, setNumResults] = useState(10);
+  const [showAll, setShowAll] = useState(false);
   const [availableCollections, setAvailableCollections] = useState<string[]>([]);
   const [loadingCollections, setLoadingCollections] = useState(true);
+  const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
 
   const runQuery = useCallback(
-    async (promptValue: string) => {
+    async (promptValue: string, showAllDocs: boolean = false) => {
       setIsLoading(true);
       setError(null);
       try {
         const payload = await searchCampaigns({
-          query: promptValue,
+          query: showAllDocs ? "" : promptValue,
           collection_name: collectionName.trim() || undefined,
           num_results: numResults,
+          show_all: showAllDocs,
         });
         setResult(payload);
       } catch (err) {
@@ -44,7 +47,7 @@ export function PromptSqlExplorer() {
         setAvailableCollections(collections);
         if (collections.length > 0 && !collectionName) {
           // Set default to first collection or "klaviyo_campaigns" if available
-          const defaultCollection = collections.find(c => c === "klaviyo_campaigns") || collections[0];
+          const defaultCollection = collections.find(c => c === "UCO_Gear_Campaigns") || collections[0];
           setCollectionName(defaultCollection);
         }
       } catch (err) {
@@ -58,10 +61,22 @@ export function PromptSqlExplorer() {
   }, []);
 
   useEffect(() => {
-    if (!loadingCollections) {
+    if (!loadingCollections && !showAll) {
       runQuery(defaultPrompt);
     }
   }, [loadingCollections]);
+  
+  const toggleExpanded = (campaignId: string) => {
+    setExpandedCampaigns(prev => {
+      const next = new Set(prev);
+      if (next.has(campaignId)) {
+        next.delete(campaignId);
+      } else {
+        next.add(campaignId);
+      }
+      return next;
+    });
+  };
 
   const formatCampaignData = (campaign: CampaignSearchResult) => {
     const analysis = campaign.analysis || {};
@@ -145,12 +160,38 @@ export function PromptSqlExplorer() {
 
         <div className="flex flex-wrap items-center gap-3">
           <button
-            onClick={() => runQuery(prompt)}
+            onClick={() => runQuery(prompt, false)}
             className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 dark:disabled:bg-slate-600"
-            disabled={isLoading || !prompt.trim()}
+            disabled={isLoading || (!prompt.trim() && !showAll)}
           >
             {isLoading ? "Searching..." : "Search Campaigns"}
           </button>
+          <button
+            onClick={() => {
+              setShowAll(true);
+              runQuery("", true);
+            }}
+            className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400 dark:bg-blue-500 dark:hover:bg-blue-600"
+            disabled={isLoading}
+          >
+            {isLoading ? "Loading..." : "Show All Documents"}
+          </button>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showAll}
+              onChange={(e) => {
+                setShowAll(e.target.checked);
+                if (e.target.checked) {
+                  runQuery("", true);
+                } else {
+                  runQuery(prompt, false);
+                }
+              }}
+              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-xs text-slate-600 dark:text-slate-400">Show all documents</span>
+          </label>
           {result ? (
             <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
               Found <span className="text-slate-700 dark:text-slate-300">{result.total_found}</span> campaigns
@@ -173,6 +214,9 @@ export function PromptSqlExplorer() {
           <div className="space-y-3 max-h-[600px] overflow-y-auto">
             {result.campaigns.map((campaign, idx) => {
               const data = formatCampaignData(campaign);
+              const isExpanded = expandedCampaigns.has(campaign.campaign_id);
+              const hasFullData = campaign.document || (campaign.analysis && typeof campaign.analysis === 'object');
+              
               return (
                 <div
                   key={campaign.campaign_id}
@@ -187,8 +231,20 @@ export function PromptSqlExplorer() {
                         ID: {data.campaign_id}
                       </p>
                     </div>
-                    <div className="text-xs font-medium text-slate-600 dark:text-slate-300 bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded">
-                      {data.similarity_score} match
+                    <div className="flex items-center gap-2">
+                      {data.similarity_score !== "100.0%" && (
+                        <div className="text-xs font-medium text-slate-600 dark:text-slate-300 bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded">
+                          {data.similarity_score} match
+                        </div>
+                      )}
+                      {hasFullData && (
+                        <button
+                          onClick={() => toggleExpanded(campaign.campaign_id)}
+                          className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline px-2 py-1"
+                        >
+                          {isExpanded ? "Hide" : "Show"} Full Data
+                        </button>
+                      )}
                     </div>
                   </div>
                   
@@ -242,6 +298,47 @@ export function PromptSqlExplorer() {
                           </span>
                         ))}
                       </div>
+                    </div>
+                  )}
+                  
+                  {/* Full Document Data */}
+                  {isExpanded && hasFullData && (
+                    <div className="mt-4 pt-4 border-t border-slate-300 dark:border-slate-600">
+                      <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Full Document Data</h4>
+                      
+                      {/* Metadata */}
+                      {campaign.metadata && Object.keys(campaign.metadata).length > 0 && (
+                        <div className="mb-3">
+                          <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Metadata:</h5>
+                          <pre className="text-xs bg-slate-100 dark:bg-slate-800 p-2 rounded overflow-x-auto max-h-40 overflow-y-auto">
+                            {JSON.stringify(campaign.metadata, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+                      
+                      {/* Analysis */}
+                      {campaign.analysis && (
+                        <div className="mb-3">
+                          <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Analysis:</h5>
+                          <pre className="text-xs bg-slate-100 dark:bg-slate-800 p-2 rounded overflow-x-auto max-h-60 overflow-y-auto">
+                            {typeof campaign.analysis === 'string' 
+                              ? campaign.analysis 
+                              : JSON.stringify(campaign.analysis, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+                      
+                      {/* Raw Document */}
+                      {campaign.document && (
+                        <div className="mb-3">
+                          <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Raw Document:</h5>
+                          <pre className="text-xs bg-slate-100 dark:bg-slate-800 p-2 rounded overflow-x-auto max-h-60 overflow-y-auto">
+                            {typeof campaign.document === 'string' 
+                              ? campaign.document 
+                              : JSON.stringify(campaign.document, null, 2)}
+                          </pre>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

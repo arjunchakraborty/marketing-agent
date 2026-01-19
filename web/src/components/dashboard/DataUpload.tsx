@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   uploadCampaignDataZip,
+  uploadVectorDbZip,
   uploadProductsZip,
   type CampaignDataZipUploadResponse,
   type ProductZipUploadResponse,
@@ -97,10 +98,8 @@ export function DataUpload() {
 
       switch (activeTab) {
         case "campaign-data":
-          result = await uploadCampaignDataZip(
-            selectedFile,
-            campaignBusinessName.trim() || undefined,
-            campaignCollectionName || undefined
+          result = await uploadVectorDbZip(
+            selectedFile
           );
           break;
         case "products":

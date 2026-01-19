@@ -21,9 +21,10 @@ router = APIRouter()
 
 class VectorSearchRequest(BaseModel):
     """Request to search campaigns in vector database."""
-    query: str = Field(..., description="Natural language query to search for campaigns")
-    collection_name: Optional[str] = Field(None, description="Optional collection name (default: default_collection)")
-    num_results: int = Field(10, description="Number of results to return", ge=1, le=50)
+    query: Optional[str] = Field(default="", description="Natural language query to search for campaigns. If empty, returns all documents.")
+    collection_name: Optional[str] = Field(default=None, description="Optional collection name (default: UCO_Gear_Campaigns)")
+    num_results: int = Field(default=10, description="Number of results to return (only used when query is provided)", ge=1, le=50)
+    show_all: bool = Field(default=False, description="If true, return all documents regardless of query")
 
 
 class VectorSearchResponse(BaseModel):
@@ -52,31 +53,47 @@ async def search_campaigns(payload: VectorSearchRequest) -> VectorSearchResponse
     """
     Search for campaigns in the vector database using natural language.
     
-    This endpoint uses semantic similarity to find campaigns that match your query.
+    If query is empty or show_all is true, returns all documents from the vector database.
+    Otherwise, uses semantic similarity to find campaigns that match your query.
+    
     Examples:
     - "high performing email campaigns"
     - "campaigns with high conversion rates"
     - "product launch campaigns"
     - "campaigns promoting outdoor gear"
+    - "" (empty query) - returns all documents
     """
-    logger.info(f"Searching campaigns: query={payload.query[:100]}, collection={payload.collection_name}, num_results={payload.num_results}")
+    query = payload.query or ""
+    logger.info(f"Searching campaigns: query={query[:100] if query else '(all documents)'}, collection={payload.collection_name}, show_all={payload.show_all}, num_results={payload.num_results}")
     
     try:
-        collection_name = payload.collection_name or "default_collection"
+        collection_name = payload.collection_name or "UCO_Gear_Campaigns"
         vector_db_service = VectorDBService(collection_name=collection_name)
         
-        similar_campaigns = vector_db_service.search_similar_campaigns(
-            query_text=payload.query,
-            n_results=payload.num_results,
-        )
-        
-        logger.info(f"Found {len(similar_campaigns)} campaigns matching query")
-        
-        return VectorSearchResponse(
-            campaigns=similar_campaigns,
-            total_found=len(similar_campaigns),
-            query=payload.query,
-        )
+        # If show_all is true or query is empty, return all documents
+        if payload.show_all or not query.strip():
+            all_campaigns = vector_db_service.get_all_campaigns()
+            logger.info(f"Retrieved {len(all_campaigns)} campaigns from vector database (all documents)")
+            
+            return VectorSearchResponse(
+                campaigns=all_campaigns,
+                total_found=len(all_campaigns),
+                query=query or "(all documents)",
+            )
+        else:
+            # Perform semantic search
+            similar_campaigns = vector_db_service.search_similar_campaigns(
+                query_text=query,
+                n_results=payload.num_results,
+            )
+            
+            logger.info(f"Found {len(similar_campaigns)} campaigns matching query")
+            
+            return VectorSearchResponse(
+                campaigns=similar_campaigns,
+                total_found=len(similar_campaigns),
+                query=query,
+            )
     except Exception as e:
         logger.exception(f"Failed to search campaigns: {type(e).__name__}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Campaign search failed: {str(e)}")
