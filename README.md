@@ -19,7 +19,7 @@ strategy-agent-spec.md  Supplemental strategy guidance for future milestones
 - Node.js 20+
 - npm (bundled with Node.js)
 - PostgreSQL (local or container) if you plan to wire up persistence
-- **ChromaDB** (for vector search) - see installation instructions below
+- **ChromaDB** (optional, for vector search) - see installation instructions below. The app can run without it, but vector search features will be unavailable.
 - **Ollama** (optional, for local LLM) - https://ollama.ai - install if using local LLM instead of OpenAI/Anthropic
 
 ### Backend Setup
@@ -70,9 +70,13 @@ The error message will now show the actual exception type and details. Common ca
 
 **Note:** If you encounter `ModuleNotFoundError: No module named 'app'`, make sure you're running commands from the `backend` directory. The `app` module must be in Python's import path.
 
-#### ChromaDB Installation
+#### ChromaDB Installation (Optional)
 
-ChromaDB is included in the project dependencies (`pyproject.toml`) and should be installed automatically when you run `pip install -e '.[dev]'`. However, if you see "ChromaDB not available" errors, follow these steps:
+ChromaDB is included in the project dependencies (`pyproject.toml`) and should be installed automatically when you run `pip install -e '.[dev]'`. **ChromaDB is optional** - the app will start and run without it, but vector search features will be unavailable.
+
+**No initialization required** - ChromaDB automatically creates the database directory and collections when first used. You don't need to run any setup workflows.
+
+If you see "ChromaDB not available" errors when trying to use vector search features, follow these steps:
 
 1. **Ensure virtual environment is activated:**
    ```bash

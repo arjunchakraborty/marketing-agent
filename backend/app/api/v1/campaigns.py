@@ -13,7 +13,14 @@ from ...schemas.campaigns import (
     EmailCampaignsListResponse,
 )
 from ...services.campaign_generation_service import CampaignGenerationService
-from ...services.vector_db_service import VectorDBService
+# Import VectorDBService lazily to avoid import errors at startup
+try:
+    from ...services.vector_db_service import VectorDBService, list_all_collections
+    VECTOR_DB_AVAILABLE = True
+except Exception:
+    VECTOR_DB_AVAILABLE = False
+    VectorDBService = None
+    list_all_collections = None
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -39,8 +46,10 @@ async def list_collections() -> List[str]:
     """Get a list of all available collections in the vector database."""
     logger.info("Listing all vector database collections")
     
+    if not VECTOR_DB_AVAILABLE or list_all_collections is None:
+        raise HTTPException(status_code=503, detail="Vector database (ChromaDB) is not available. Please install ChromaDB: pip install chromadb")
+    
     try:
-        from ...services.vector_db_service import list_all_collections
         collections = list_all_collections()
         return collections
     except Exception as e:
@@ -65,6 +74,9 @@ async def search_campaigns(payload: VectorSearchRequest) -> VectorSearchResponse
     """
     query = payload.query or ""
     logger.info(f"Searching campaigns: query={query[:100] if query else '(all documents)'}, collection={payload.collection_name}, show_all={payload.show_all}, num_results={payload.num_results}")
+    
+    if not VECTOR_DB_AVAILABLE or VectorDBService is None:
+        raise HTTPException(status_code=503, detail="Vector database (ChromaDB) is not available. Please install ChromaDB: pip install chromadb")
     
     try:
         collection_name = payload.collection_name or "UCO_Gear_Campaigns"
