@@ -141,10 +141,44 @@ Return as JSON with keys: key_features (list), patterns (dict with keys: visual,
                 response = response.split("```")[1].split("```")[0].strip()
             
             analysis = json.loads(response)
+            
+            # Extract structured recommendations if available
+            hero_image_prompts = []
+            text_prompts = []
+            call_to_action_prompts = []
+            
+            # Check for structured recommendations
+            if "hero_image_prompts" in analysis:
+                hero_image_prompts = analysis.get("hero_image_prompts", [])
+            elif "hero_image" in analysis:
+                hero_image_prompts = analysis.get("hero_image", [])
+                if not isinstance(hero_image_prompts, list):
+                    hero_image_prompts = [hero_image_prompts] if hero_image_prompts else []
+            
+            if "text_prompts" in analysis:
+                text_prompts = analysis.get("text_prompts", [])
+            elif "text" in analysis:
+                text_prompts = analysis.get("text", [])
+                if not isinstance(text_prompts, list):
+                    text_prompts = [text_prompts] if text_prompts else []
+            
+            if "call_to_action_prompts" in analysis:
+                call_to_action_prompts = analysis.get("call_to_action_prompts", [])
+            elif "call_to_action" in analysis:
+                call_to_action_prompts = analysis.get("call_to_action", [])
+                if not isinstance(call_to_action_prompts, list):
+                    call_to_action_prompts = [call_to_action_prompts] if call_to_action_prompts else []
+            
+            # Fallback to flat recommendations if structured ones don't exist
+            flat_recommendations = analysis.get("recommendations", [])
+            
             return {
                 "key_features": analysis.get("key_features", []),
                 "patterns": analysis.get("patterns", {}),
-                "recommendations": analysis.get("recommendations", []),
+                "recommendations": flat_recommendations,
+                "hero_image_prompts": hero_image_prompts,
+                "text_prompts": text_prompts,
+                "call_to_action_prompts": call_to_action_prompts,
                 "summary": f"Analyzed {len(campaigns)} campaigns and identified {len(analysis.get('key_features', []))} key features",
             }
         except json.JSONDecodeError:

@@ -1,13 +1,22 @@
 """Centralized application configuration and settings management."""
 from functools import lru_cache
+from pathlib import Path
 from typing import List, Optional, Sequence
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Load .env from this package directory (backend/app/core/.env) so it's read regardless of CWD
+_THIS_DIR = Path(__file__).resolve().parent
+_ENV_FILE = _THIS_DIR / ".env"
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="allow")
+    model_config = SettingsConfigDict(
+        env_file=str(_ENV_FILE),
+        env_file_encoding="utf-8",
+        extra="allow",
+    )
 
     app_name: str = "Marketing Agent Backend"
     version: str = "0.1.0"

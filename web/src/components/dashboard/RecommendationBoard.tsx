@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { listExperiments, generateEmailCampaign, type ExperimentResultsResponse, type EmailCampaignGenerationRequest, type EmailCampaignResponse } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,9 @@ interface ExperimentSummary {
     design?: string;
   };
   recommendations?: string[];
+  hero_image_prompts?: string[];
+  text_prompts?: string[];
+  call_to_action_prompts?: string[];
   summary?: string;
   prompt_query?: string;
 }
@@ -39,7 +42,9 @@ export function RecommendationBoard() {
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generationResult, setGenerationResult] = useState<any>(null);
   const [availableProducts, setAvailableProducts] = useState<string[]>([]);
-  
+  const [productsDropdownOpen, setProductsDropdownOpen] = useState(false);
+  const productsDropdownRef = useRef<HTMLDivElement>(null);
+
   const [formData, setFormData] = useState<EmailCampaignGenerationRequest>({
     objective: "",
     products: [],
@@ -55,6 +60,17 @@ export function RecommendationBoard() {
   useEffect(() => {
     loadExperiments();
   }, []);
+
+  useEffect(() => {
+    if (!productsDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (productsDropdownRef.current && !productsDropdownRef.current.contains(e.target as Node)) {
+        setProductsDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [productsDropdownOpen]);
 
   const loadExperiments = async () => {
     try {
@@ -104,9 +120,40 @@ export function RecommendationBoard() {
     setAvailableProducts(products);
     
     let initialStrategyFocus = "";
+    const allRecommendations: string[] = [];
+    
+    if (summary.hero_image_prompts && summary.hero_image_prompts.length > 0) {
+      allRecommendations.push("Hero Image Prompts:");
+      summary.hero_image_prompts.forEach((prompt) => {
+        allRecommendations.push(`  • ${prompt}`);
+      });
+    }
+    
+    if (summary.text_prompts && summary.text_prompts.length > 0) {
+      allRecommendations.push("\nText Prompts:");
+      summary.text_prompts.forEach((prompt) => {
+        allRecommendations.push(`  • ${prompt}`);
+      });
+    }
+    
+    if (summary.call_to_action_prompts && summary.call_to_action_prompts.length > 0) {
+      allRecommendations.push("\nCall to Action Prompts:");
+      summary.call_to_action_prompts.forEach((prompt) => {
+        allRecommendations.push(`  • ${prompt}`);
+      });
+    }
+    
     if (summary.recommendations && summary.recommendations.length > 0) {
-      initialStrategyFocus = summary.recommendations.join("\n• ");
-      initialStrategyFocus = "Recommendations:\n• " + initialStrategyFocus;
+      if (allRecommendations.length > 0) {
+        allRecommendations.push("\nGeneral Recommendations:");
+      }
+      summary.recommendations.forEach((rec) => {
+        allRecommendations.push(`  • ${rec}`);
+      });
+    }
+    
+    if (allRecommendations.length > 0) {
+      initialStrategyFocus = allRecommendations.join("\n");
     } else if (summary.summary) {
       initialStrategyFocus = summary.summary;
     }
@@ -144,14 +191,16 @@ export function RecommendationBoard() {
   };
 
   const handleGenerateCampaigns = async () => {
-    if (!formData.objective || !formData.objective.trim()) {
-      setGenerationError("Campaign objective is required");
-      return;
-    }
-
-    if (!formData.products || formData.products.length === 0) {
-      setGenerationError("Please select at least one product");
-      return;
+    const fromExperiment = Boolean(selectedExperimentId);
+    if (!fromExperiment) {
+      if (!formData.objective || !formData.objective.trim()) {
+        setGenerationError("Campaign objective is required");
+        return;
+      }
+      if (!formData.products || formData.products.length === 0) {
+        setGenerationError("Please select at least one product");
+        return;
+      }
     }
 
     setGenerating(true);
@@ -159,7 +208,10 @@ export function RecommendationBoard() {
     setGenerationResult(null);
 
     try {
-      const result = await generateEmailCampaign(formData);
+      const request = fromExperiment
+        ? { ...formData, experiment_run_id: selectedExperimentId!, objective: formData.objective || "Generate from experiment" }
+        : formData;
+      const result = await generateEmailCampaign(request);
       setGenerationResult(result);
     } catch (err: any) {
       setGenerationError(err.message || "Failed to generate campaign");
@@ -211,6 +263,13 @@ export function RecommendationBoard() {
       key_features: Array.isArray(resultsSummary.key_features) ? resultsSummary.key_features : undefined,
       patterns: resultsSummary.patterns && typeof resultsSummary.patterns === 'object' ? resultsSummary.patterns : undefined,
       recommendations: Array.isArray(resultsSummary.recommendations) ? resultsSummary.recommendations : undefined,
+      // Use direct fields from API response if available, otherwise fall back to results_summary
+      hero_image_prompts: Array.isArray(exp.hero_image_prompts) ? exp.hero_image_prompts : 
+                          (Array.isArray(resultsSummary.hero_image_prompts) ? resultsSummary.hero_image_prompts : undefined),
+      text_prompts: Array.isArray(exp.text_prompts) ? exp.text_prompts :
+                    (Array.isArray(resultsSummary.text_prompts) ? resultsSummary.text_prompts : undefined),
+      call_to_action_prompts: Array.isArray(exp.call_to_action_prompts) ? exp.call_to_action_prompts :
+                              (Array.isArray(resultsSummary.call_to_action_prompts) ? resultsSummary.call_to_action_prompts : undefined),
       summary: typeof resultsSummary.summary === 'string' ? resultsSummary.summary : undefined,
       prompt_query: config.prompt_query || resultsSummary.prompt_query || undefined,
     };
@@ -307,6 +366,11 @@ export function RecommendationBoard() {
                           {summary.status.toUpperCase()}
                         </Badge>
                       </div>
+                      <div className="mb-2">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                          <span className="font-semibold">ID:</span> {summary.experiment_run_id}
+                        </p>
+                      </div>
                       {summary.prompt_query && (
                         <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">
                           <span className="font-semibold">Query:</span> {summary.prompt_query}
@@ -322,19 +386,86 @@ export function RecommendationBoard() {
                             <span>{summary.key_features.length} key features</span>
                           </>
                         )}
-                        {summary.recommendations && summary.recommendations.length > 0 && (
+                        {((summary.recommendations && summary.recommendations.length > 0) ||
+                          (summary.hero_image_prompts && summary.hero_image_prompts.length > 0) ||
+                          (summary.text_prompts && summary.text_prompts.length > 0) ||
+                          (summary.call_to_action_prompts && summary.call_to_action_prompts.length > 0)) && (
                           <>
                             <span>•</span>
-                            <span>{summary.recommendations.length} recommendations</span>
+                            <span>
+                              {(summary.recommendations?.length || 0) +
+                               (summary.hero_image_prompts?.length || 0) +
+                               (summary.text_prompts?.length || 0) +
+                               (summary.call_to_action_prompts?.length || 0)} recommendations
+                            </span>
                           </>
                         )}
                       </div>
+                      {/* Show prompt previews when collapsed */}
+                      {!isExpanded && (
+                        <div className="mt-3 space-y-2">
+                          {summary.hero_image_prompts && summary.hero_image_prompts.length > 0 && (
+                            <div className="text-xs">
+                              <span className="font-semibold text-slate-700 dark:text-slate-300">Hero Image Prompts:</span>
+                              <div className="mt-1 space-y-1">
+                                {summary.hero_image_prompts.slice(0, 2).map((prompt, idx) => (
+                                  <div key={idx} className="text-slate-600 dark:text-slate-400 italic pl-2">
+                                    "{prompt}"
+                                  </div>
+                                ))}
+                                {summary.hero_image_prompts.length > 2 && (
+                                  <div className="text-slate-500 dark:text-slate-500">
+                                    +{summary.hero_image_prompts.length - 2} more
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          {summary.text_prompts && summary.text_prompts.length > 0 && (
+                            <div className="text-xs">
+                              <span className="font-semibold text-slate-700 dark:text-slate-300">Text Prompts:</span>
+                              <div className="mt-1 space-y-1">
+                                {summary.text_prompts.slice(0, 2).map((prompt, idx) => (
+                                  <div key={idx} className="text-slate-600 dark:text-slate-400 italic pl-2">
+                                    "{prompt}"
+                                  </div>
+                                ))}
+                                {summary.text_prompts.length > 2 && (
+                                  <div className="text-slate-500 dark:text-slate-500">
+                                    +{summary.text_prompts.length - 2} more
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          {summary.call_to_action_prompts && summary.call_to_action_prompts.length > 0 && (
+                            <div className="text-xs">
+                              <span className="font-semibold text-slate-700 dark:text-slate-300">Call to Action Prompts:</span>
+                              <div className="mt-1 space-y-1">
+                                {summary.call_to_action_prompts.slice(0, 2).map((prompt, idx) => (
+                                  <div key={idx} className="text-slate-600 dark:text-slate-400 italic pl-2">
+                                    "{prompt}"
+                                  </div>
+                                ))}
+                                {summary.call_to_action_prompts.length > 2 && (
+                                  <div className="text-slate-500 dark:text-slate-500">
+                                    +{summary.call_to_action_prompts.length - 2} more
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 ml-4">
                       <Button variant="ghost" size="sm" onClick={() => setExpandedExperiment(isExpanded ? null : summary.experiment_run_id)}>
                         {isExpanded ? "Hide" : "Show Details"}
                       </Button>
-                      {summary.recommendations && summary.recommendations.length > 0 && (
+                      {((summary.recommendations && summary.recommendations.length > 0) ||
+                        (summary.hero_image_prompts && summary.hero_image_prompts.length > 0) ||
+                        (summary.text_prompts && summary.text_prompts.length > 0) ||
+                        (summary.call_to_action_prompts && summary.call_to_action_prompts.length > 0)) && (
                         <Button
                           variant="default"
                           size="sm"
@@ -359,7 +490,12 @@ export function RecommendationBoard() {
                         </TabsTrigger>
                         <TabsTrigger value="patterns">Patterns</TabsTrigger>
                         <TabsTrigger value="recommendations">
-                          Recommendations ({summary.recommendations?.length || 0})
+                          Recommendations ({
+                            (summary.recommendations?.length || 0) +
+                            (summary.hero_image_prompts?.length || 0) +
+                            (summary.text_prompts?.length || 0) +
+                            (summary.call_to_action_prompts?.length || 0)
+                          })
                         </TabsTrigger>
                         <TabsTrigger value="campaigns">
                           Campaigns ({exp.campaign_analyses.length})
@@ -413,12 +549,63 @@ export function RecommendationBoard() {
                       </TabsContent>
 
                       <TabsContent value="recommendations" className="mt-4">
-                        {summary.recommendations && summary.recommendations.length > 0 ? (
-                          <ul className="list-disc list-inside space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                            {summary.recommendations.map((rec, idx) => (
-                              <li key={idx}>{rec}</li>
-                            ))}
-                          </ul>
+                        {(summary.recommendations && summary.recommendations.length > 0) ||
+                         (summary.hero_image_prompts && summary.hero_image_prompts.length > 0) ||
+                         (summary.text_prompts && summary.text_prompts.length > 0) ||
+                         (summary.call_to_action_prompts && summary.call_to_action_prompts.length > 0) ? (
+                          <div className="space-y-6">
+                            {summary.hero_image_prompts && summary.hero_image_prompts.length > 0 && (
+                              <div>
+                                <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">
+                                  Hero Image Prompts ({summary.hero_image_prompts.length})
+                                </h4>
+                                <ul className="list-disc list-inside space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                                  {summary.hero_image_prompts.map((prompt, idx) => (
+                                    <li key={idx} className="pl-2">{prompt}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            
+                            {summary.text_prompts && summary.text_prompts.length > 0 && (
+                              <div>
+                                <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">
+                                  Text Prompts ({summary.text_prompts.length})
+                                </h4>
+                                <ul className="list-disc list-inside space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                                  {summary.text_prompts.map((prompt, idx) => (
+                                    <li key={idx} className="pl-2">{prompt}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            
+                            {summary.call_to_action_prompts && summary.call_to_action_prompts.length > 0 && (
+                              <div>
+                                <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">
+                                  Call to Action Prompts ({summary.call_to_action_prompts.length})
+                                </h4>
+                                <ul className="list-disc list-inside space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                                  {summary.call_to_action_prompts.map((prompt, idx) => (
+                                    <li key={idx} className="pl-2">{prompt}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            
+                            {summary.recommendations && summary.recommendations.length > 0 && (
+                              <div>
+                                <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">
+                                  General Recommendations ({summary.recommendations.length})
+                                </h4>
+                                <ul className="list-disc list-inside space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                                  {summary.recommendations.map((rec, idx) => (
+                                    <li key={idx} className="pl-2">{rec}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <p className="text-sm text-slate-500 dark:text-slate-400">No recommendations available</p>
                         )}
@@ -488,16 +675,56 @@ export function RecommendationBoard() {
                     <p className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-1">Experiment ID:</p>
                     <p className="text-sm text-blue-700 dark:text-blue-300 font-mono">{selectedExperimentId}</p>
                   </div>
-                  {summary.recommendations && summary.recommendations.length > 0 && (
+                  {((summary.recommendations && summary.recommendations.length > 0) ||
+                    (summary.hero_image_prompts && summary.hero_image_prompts.length > 0) ||
+                    (summary.text_prompts && summary.text_prompts.length > 0) ||
+                    (summary.call_to_action_prompts && summary.call_to_action_prompts.length > 0)) && (
                     <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
                       <p className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2">
-                        Using all {summary.recommendations.length} recommendation{summary.recommendations.length !== 1 ? 's' : ''}:
+                        Using recommendations:
                       </p>
-                      <ul className="list-disc list-inside space-y-1 text-xs text-blue-700 dark:text-blue-300">
-                        {summary.recommendations.map((rec, idx) => (
-                          <li key={idx}>{rec}</li>
-                        ))}
-                      </ul>
+                      <div className="space-y-3 text-xs text-blue-700 dark:text-blue-300">
+                        {summary.hero_image_prompts && summary.hero_image_prompts.length > 0 && (
+                          <div>
+                            <p className="font-semibold mb-1">Hero Image Prompts ({summary.hero_image_prompts.length}):</p>
+                            <ul className="list-disc list-inside space-y-1 ml-2">
+                              {summary.hero_image_prompts.map((prompt, idx) => (
+                                <li key={idx}>{prompt}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {summary.text_prompts && summary.text_prompts.length > 0 && (
+                          <div>
+                            <p className="font-semibold mb-1">Text Prompts ({summary.text_prompts.length}):</p>
+                            <ul className="list-disc list-inside space-y-1 ml-2">
+                              {summary.text_prompts.map((prompt, idx) => (
+                                <li key={idx}>{prompt}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {summary.call_to_action_prompts && summary.call_to_action_prompts.length > 0 && (
+                          <div>
+                            <p className="font-semibold mb-1">Call to Action Prompts ({summary.call_to_action_prompts.length}):</p>
+                            <ul className="list-disc list-inside space-y-1 ml-2">
+                              {summary.call_to_action_prompts.map((prompt, idx) => (
+                                <li key={idx}>{prompt}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {summary.recommendations && summary.recommendations.length > 0 && (
+                          <div>
+                            <p className="font-semibold mb-1">General Recommendations ({summary.recommendations.length}):</p>
+                            <ul className="list-disc list-inside space-y-1 ml-2">
+                              {summary.recommendations.map((rec, idx) => (
+                                <li key={idx}>{rec}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -530,69 +757,88 @@ export function RecommendationBoard() {
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" ref={productsDropdownRef}>
               <Label>Select Products</Label>
               {availableProducts.length > 0 ? (
-                <div className="max-h-48 overflow-y-auto rounded border border-slate-200 dark:border-slate-700 p-3 space-y-2">
-                  {availableProducts.map((product) => {
-                    const isSelected = formData.products?.includes(product) || false;
-                    return (
-                      <label
-                        key={product}
-                        className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 p-2 rounded"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={(e) => {
-                            const currentProducts = formData.products || [];
-                            if (e.target.checked) {
-                              setFormData({
-                                ...formData,
-                                products: [...currentProducts, product],
-                              });
-                            } else {
-                              setFormData({
-                                ...formData,
-                                products: currentProducts.filter((p) => p !== product),
-                              });
-                            }
-                          }}
-                          className="rounded border-slate-300 dark:border-slate-600"
-                        />
-                        <span className="text-sm text-slate-700 dark:text-slate-300">{product}</span>
-                      </label>
-                    );
-                  })}
-                </div>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setProductsDropdownOpen((o) => !o)}
+                    className="flex w-full items-center justify-between gap-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-left text-sm shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+                  >
+                    <span className="text-slate-700 dark:text-slate-300 truncate">
+                      {formData.products && formData.products.length > 0
+                        ? `${formData.products.length} product${formData.products.length !== 1 ? "s" : ""} selected`
+                        : "Choose products..."}
+                    </span>
+                    <svg
+                      className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${productsDropdownOpen ? "rotate-180" : ""}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {productsDropdownOpen && (
+                    <div className="relative z-10 mt-1 max-h-48 overflow-y-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
+                      {availableProducts.map((product) => {
+                        const isSelected = formData.products?.includes(product) || false;
+                        return (
+                          <label
+                            key={product}
+                            className="flex cursor-pointer items-center gap-2 border-b border-slate-100 dark:border-slate-800 px-3 py-2 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-800"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                const currentProducts = formData.products || [];
+                                if (e.target.checked) {
+                                  setFormData({
+                                    ...formData,
+                                    products: [...currentProducts, product],
+                                  });
+                                } else {
+                                  setFormData({
+                                    ...formData,
+                                    products: currentProducts.filter((p) => p !== product),
+                                  });
+                                }
+                              }}
+                              className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
+                            />
+                            <span className="text-sm text-slate-700 dark:text-slate-300">{product}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               ) : (
-                <div className="rounded border border-slate-200 dark:border-slate-700 p-3">
+                <div className="space-y-2">
                   <p className="text-sm text-slate-500 dark:text-slate-400">
-                    No products found in this experiment. You can manually enter products below.
+                    No products found in this experiment. Enter products manually (comma-separated):
                   </p>
+                  <Input
+                    id="manual-products"
+                    type="text"
+                    value={formData.products?.join(", ") ?? ""}
+                    placeholder="Product 1, Product 2, Product 3"
+                    onChange={(e) => {
+                      const products = e.target.value
+                        .split(",")
+                        .map((p) => p.trim())
+                        .filter((p) => p.length > 0);
+                      setFormData({
+                        ...formData,
+                        products: products,
+                      });
+                    }}
+                    className="rounded-md border border-slate-200 dark:border-slate-700"
+                  />
                 </div>
               )}
-              <div className="mt-2">
-                <Label htmlFor="manual-products" className="text-xs text-slate-500 dark:text-slate-400">
-                  Or enter products manually (comma-separated):
-                </Label>
-                <Input
-                  id="manual-products"
-                  type="text"
-                  placeholder="Product 1, Product 2, Product 3"
-                  onChange={(e) => {
-                    const products = e.target.value
-                      .split(",")
-                      .map((p) => p.trim())
-                      .filter((p) => p.length > 0);
-                    setFormData({
-                      ...formData,
-                      products: products,
-                    });
-                  }}
-                  className="mt-1"
-                />
-              </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {formData.products && formData.products.length > 0
                   ? `${formData.products.length} product${formData.products.length !== 1 ? "s" : ""} selected`
