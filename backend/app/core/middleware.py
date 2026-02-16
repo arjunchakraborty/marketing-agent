@@ -21,8 +21,8 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         # Check if this is a public endpoint
         path = request.url.path
         
-        # Allow public endpoints
-        if path in self.PUBLIC_PATHS or path.startswith("/docs") or path.startswith("/openapi.json") or path.startswith("/redoc"):
+        # Allow public endpoints (images are served without auth for iframe previews)
+        if path in self.PUBLIC_PATHS or path.startswith("/docs") or path.startswith("/openapi.json") or path.startswith("/redoc") or path.startswith("/api/v1/images/"):
             return await call_next(request)
         
         # Allow OPTIONS requests for CORS

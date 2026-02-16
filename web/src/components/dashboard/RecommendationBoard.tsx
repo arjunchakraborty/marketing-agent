@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { listExperiments, generateEmailCampaign, type ExperimentResultsResponse, type EmailCampaignGenerationRequest, type EmailCampaignResponse } from "@/lib/api";
+import { listExperiments, generateEmailCampaign, getProductsFromVector, prepareCampaignHtmlForPreview, type ExperimentResultsResponse, type EmailCampaignGenerationRequest, type EmailCampaignResponse } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,8 +41,13 @@ export function RecommendationBoard() {
   const [generating, setGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generationResult, setGenerationResult] = useState<any>(null);
+  const [emailPreviewOpen, setEmailPreviewOpen] = useState(false);
+  const [selectedSummary, setSelectedSummary] = useState<ExperimentSummary | null>(null);
   const [availableProducts, setAvailableProducts] = useState<string[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
   const [productsDropdownOpen, setProductsDropdownOpen] = useState(false);
+  const [productSearchQuery, setProductSearchQuery] = useState("");
+  const productSearchInputRef = useRef<HTMLInputElement>(null);
   const productsDropdownRef = useRef<HTMLDivElement>(null);
 
   const [formData, setFormData] = useState<EmailCampaignGenerationRequest>({
@@ -62,7 +67,10 @@ export function RecommendationBoard() {
   }, []);
 
   useEffect(() => {
-    if (!productsDropdownOpen) return;
+    if (!productsDropdownOpen) {
+      setProductSearchQuery("");
+      return;
+    }
     const handleClickOutside = (e: MouseEvent) => {
       if (productsDropdownRef.current && !productsDropdownRef.current.contains(e.target as Node)) {
         setProductsDropdownOpen(false);
@@ -71,6 +79,35 @@ export function RecommendationBoard() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [productsDropdownOpen]);
+
+  useEffect(() => {
+    if (productsDropdownOpen && availableProducts.length > 0) {
+      const t = setTimeout(() => productSearchInputRef.current?.focus(), 0);
+      return () => clearTimeout(t);
+    }
+  }, [productsDropdownOpen, availableProducts.length]);
+
+  useEffect(() => {
+    if (!generateDialogOpen) return;
+    let cancelled = false;
+    setProductsLoading(true);
+    setAvailableProducts([]);
+    getProductsFromVector()
+      .then((res) => {
+        if (cancelled) return;
+        const names = (res.products || []).map((p) => p.product_name).filter(Boolean);
+        setAvailableProducts(names);
+      })
+      .catch(() => {
+        if (!cancelled) setAvailableProducts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setProductsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [generateDialogOpen]);
 
   const loadExperiments = async () => {
     try {
@@ -92,93 +129,22 @@ export function RecommendationBoard() {
 
   const handleAcceptAndGenerate = (experimentId: string, summary: ExperimentSummary) => {
     setSelectedExperimentId(experimentId);
-    
-    const exp = experiments.find(e => e.experiment_run.experiment_run_id === experimentId);
-    const products: string[] = [];
-    
-    if (exp) {
-      exp.campaign_analyses.forEach((campaign) => {
-        if (campaign.products_promoted && Array.isArray(campaign.products_promoted)) {
-          campaign.products_promoted.forEach((product: string) => {
-            if (product && !products.includes(product)) {
-              products.push(product);
-            }
-          });
-        }
-      });
-      
-      const resultsSummary = exp.experiment_run.results_summary || {};
-      if (resultsSummary.products_promoted && Array.isArray(resultsSummary.products_promoted)) {
-        resultsSummary.products_promoted.forEach((product: string) => {
-          if (product && !products.includes(product)) {
-            products.push(product);
-          }
-        });
-      }
-    }
-    
-    setAvailableProducts(products);
-    
-    let initialStrategyFocus = "";
-    const allRecommendations: string[] = [];
-    
-    if (summary.hero_image_prompts && summary.hero_image_prompts.length > 0) {
-      allRecommendations.push("Hero Image Prompts:");
-      summary.hero_image_prompts.forEach((prompt) => {
-        allRecommendations.push(`  • ${prompt}`);
-      });
-    }
-    
-    if (summary.text_prompts && summary.text_prompts.length > 0) {
-      allRecommendations.push("\nText Prompts:");
-      summary.text_prompts.forEach((prompt) => {
-        allRecommendations.push(`  • ${prompt}`);
-      });
-    }
-    
-    if (summary.call_to_action_prompts && summary.call_to_action_prompts.length > 0) {
-      allRecommendations.push("\nCall to Action Prompts:");
-      summary.call_to_action_prompts.forEach((prompt) => {
-        allRecommendations.push(`  • ${prompt}`);
-      });
-    }
-    
-    if (summary.recommendations && summary.recommendations.length > 0) {
-      if (allRecommendations.length > 0) {
-        allRecommendations.push("\nGeneral Recommendations:");
-      }
-      summary.recommendations.forEach((rec) => {
-        allRecommendations.push(`  • ${rec}`);
-      });
-    }
-    
-    if (allRecommendations.length > 0) {
-      initialStrategyFocus = allRecommendations.join("\n");
-    } else if (summary.summary) {
-      initialStrategyFocus = summary.summary;
-    }
-    
-    if (summary.key_features && summary.key_features.length > 0) {
-      const featuresText = "\n\nKey Features:\n• " + summary.key_features.join("\n• ");
-      initialStrategyFocus += featuresText;
-    }
-    
-    if (summary.patterns) {
-      const patternsText = "\n\nPatterns:\n";
-      let patternsList: string[] = [];
-      if (summary.patterns.visual) patternsList.push(`Visual: ${summary.patterns.visual}`);
-      if (summary.patterns.messaging) patternsList.push(`Messaging: ${summary.patterns.messaging}`);
-      if (summary.patterns.design) patternsList.push(`Design: ${summary.patterns.design}`);
-      if (patternsList.length > 0) {
-        initialStrategyFocus += patternsText + patternsList.join("\n");
-      }
-    }
-    
+    setSelectedSummary(summary);
+
+    // Build design guidance from visual + design patterns only
+    const designParts: string[] = [];
+    if (summary.patterns?.visual) designParts.push(`Visual: ${summary.patterns.visual}`);
+    if (summary.patterns?.design) designParts.push(`Design: ${summary.patterns.design}`);
+    const designGuidance = designParts.join("\n");
+
+    // key_message = text prompts, design_guidance = visual + design patterns
+    const textPrompts = (summary.text_prompts || []).join("\n");
+
     setFormData({
-      objective: initialStrategyFocus || "Generate email campaign based on experiment insights",
-      products: products.length > 0 ? products.slice(0, 5) : [],
-      key_message: initialStrategyFocus,
-      design_guidance: initialStrategyFocus,
+      objective: "",
+      products: [],
+      key_message: textPrompts,
+      design_guidance: designGuidance,
       tone: "professional",
       use_past_campaigns: true,
       num_similar_campaigns: 5,
@@ -208,9 +174,24 @@ export function RecommendationBoard() {
     setGenerationResult(null);
 
     try {
-      const request = fromExperiment
+      let request = fromExperiment
         ? { ...formData, experiment_run_id: selectedExperimentId!, objective: formData.objective || "Generate from experiment" }
-        : formData;
+        : { ...formData };
+
+      // Include experiment prompts in the request
+      if (selectedSummary) {
+        if (selectedSummary.hero_image_prompts && selectedSummary.hero_image_prompts.length > 0) {
+          request.hero_image_prompt = selectedSummary.hero_image_prompts.join("\n");
+          request.generate_hero_image = true;
+        }
+        if (selectedSummary.call_to_action_prompts && selectedSummary.call_to_action_prompts.length > 0) {
+          request.call_to_action = selectedSummary.call_to_action_prompts.join(" | ");
+        }
+        if (selectedSummary.text_prompts && selectedSummary.text_prompts.length > 0 && !request.key_message) {
+          request.key_message = selectedSummary.text_prompts.join("\n");
+        }
+      }
+
       const result = await generateEmailCampaign(request);
       setGenerationResult(result);
     } catch (err: any) {
@@ -659,77 +640,24 @@ export function RecommendationBoard() {
 
       <Dialog
         open={generateDialogOpen}
-        onOpenChange={setGenerateDialogOpen}
+        onOpenChange={(open) => {
+          setGenerateDialogOpen(open);
+          if (!open) setEmailPreviewOpen(false);
+        }}
         title="Generate Campaigns"
         description="Configure campaign generation based on the selected recommendation"
+        contentClassName="max-w-5xl"
       >
         <DialogContent>
           <div className="space-y-4">
-            {selectedExperimentId && (() => {
-              const exp = experiments.find(e => e.experiment_run.experiment_run_id === selectedExperimentId);
-              if (!exp) return null;
-              const summary = extractExperimentSummary(exp);
-              return (
-                <div className="space-y-2 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3">
-                  <div>
-                    <p className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-1">Experiment ID:</p>
-                    <p className="text-sm text-blue-700 dark:text-blue-300 font-mono">{selectedExperimentId}</p>
-                  </div>
-                  {((summary.recommendations && summary.recommendations.length > 0) ||
-                    (summary.hero_image_prompts && summary.hero_image_prompts.length > 0) ||
-                    (summary.text_prompts && summary.text_prompts.length > 0) ||
-                    (summary.call_to_action_prompts && summary.call_to_action_prompts.length > 0)) && (
-                    <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
-                      <p className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2">
-                        Using recommendations:
-                      </p>
-                      <div className="space-y-3 text-xs text-blue-700 dark:text-blue-300">
-                        {summary.hero_image_prompts && summary.hero_image_prompts.length > 0 && (
-                          <div>
-                            <p className="font-semibold mb-1">Hero Image Prompts ({summary.hero_image_prompts.length}):</p>
-                            <ul className="list-disc list-inside space-y-1 ml-2">
-                              {summary.hero_image_prompts.map((prompt, idx) => (
-                                <li key={idx}>{prompt}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {summary.text_prompts && summary.text_prompts.length > 0 && (
-                          <div>
-                            <p className="font-semibold mb-1">Text Prompts ({summary.text_prompts.length}):</p>
-                            <ul className="list-disc list-inside space-y-1 ml-2">
-                              {summary.text_prompts.map((prompt, idx) => (
-                                <li key={idx}>{prompt}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {summary.call_to_action_prompts && summary.call_to_action_prompts.length > 0 && (
-                          <div>
-                            <p className="font-semibold mb-1">Call to Action Prompts ({summary.call_to_action_prompts.length}):</p>
-                            <ul className="list-disc list-inside space-y-1 ml-2">
-                              {summary.call_to_action_prompts.map((prompt, idx) => (
-                                <li key={idx}>{prompt}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {summary.recommendations && summary.recommendations.length > 0 && (
-                          <div>
-                            <p className="font-semibold mb-1">General Recommendations ({summary.recommendations.length}):</p>
-                            <ul className="list-disc list-inside space-y-1 ml-2">
-                              {summary.recommendations.map((rec, idx) => (
-                                <li key={idx}>{rec}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+            {selectedExperimentId && (
+              <div className="rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-2">
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  <span className="font-semibold">Experiment:</span>{" "}
+                  <span className="font-mono">{selectedExperimentId}</span>
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="campaign-objective">Campaign Objective *</Label>
@@ -738,28 +666,92 @@ export function RecommendationBoard() {
                 value={formData.objective || ""}
                 onChange={(e) => setFormData({ ...formData, objective: e.target.value })}
                 placeholder="e.g., Increase sales, Promote new product, Re-engage customers"
-                rows={3}
+                rows={2}
                 required
               />
+            </div>
+
+            {selectedSummary?.hero_image_prompts && selectedSummary.hero_image_prompts.length > 0 && (
+              <div className="space-y-1">
+                <Label>Hero Image Prompts</Label>
+                <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 max-h-32 overflow-y-auto">
+                  <ul className="space-y-1 text-sm text-slate-700 dark:text-slate-300">
+                    {selectedSummary.hero_image_prompts.map((prompt, idx) => (
+                      <li key={idx} className="flex gap-2">
+                        <span className="text-slate-400 shrink-0">{idx + 1}.</span>
+                        <span>{prompt}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {selectedSummary?.text_prompts && selectedSummary.text_prompts.length > 0 && (
+              <div className="space-y-1">
+                <Label>Text Prompts</Label>
+                <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 max-h-32 overflow-y-auto">
+                  <ul className="space-y-1 text-sm text-slate-700 dark:text-slate-300">
+                    {selectedSummary.text_prompts.map((prompt, idx) => (
+                      <li key={idx} className="flex gap-2">
+                        <span className="text-slate-400 shrink-0">{idx + 1}.</span>
+                        <span>{prompt}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {selectedSummary?.call_to_action_prompts && selectedSummary.call_to_action_prompts.length > 0 && (
+              <div className="space-y-1">
+                <Label>Call to Action Prompts</Label>
+                <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 max-h-32 overflow-y-auto">
+                  <ul className="space-y-1 text-sm text-slate-700 dark:text-slate-300">
+                    {selectedSummary.call_to_action_prompts.map((prompt, idx) => (
+                      <li key={idx} className="flex gap-2">
+                        <span className="text-slate-400 shrink-0">{idx + 1}.</span>
+                        <span>{prompt}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="key-message">Key Message</Label>
+              <Textarea
+                id="key-message"
+                value={formData.key_message || ""}
+                onChange={(e) => setFormData({ ...formData, key_message: e.target.value })}
+                placeholder="Key message or value proposition for the campaign"
+                rows={2}
+              />
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Describe the main goal of this campaign
+                Pre-filled from text prompts (editable)
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="key-message">Key Message / Design Guidance</Label>
+              <Label htmlFor="design-guidance">Design Guidance</Label>
               <Textarea
-                id="key-message"
-                value={formData.key_message || ""}
-                onChange={(e) => setFormData({ ...formData, key_message: e.target.value, design_guidance: e.target.value })}
-                placeholder="Key message, value proposition, or design preferences"
-                rows={3}
+                id="design-guidance"
+                value={formData.design_guidance || ""}
+                onChange={(e) => setFormData({ ...formData, design_guidance: e.target.value })}
+                placeholder="Visual style, design patterns, or layout preferences"
+                rows={2}
               />
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Pre-filled from visual and design patterns (editable)
+              </p>
             </div>
 
             <div className="space-y-2" ref={productsDropdownRef}>
               <Label>Select Products</Label>
-              {availableProducts.length > 0 ? (
+              {productsLoading ? (
+                <p className="text-sm text-slate-500 dark:text-slate-400">Loading products...</p>
+              ) : (
                 <>
                   <button
                     type="button"
@@ -781,63 +773,71 @@ export function RecommendationBoard() {
                     </svg>
                   </button>
                   {productsDropdownOpen && (
-                    <div className="relative z-10 mt-1 max-h-48 overflow-y-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
-                      {availableProducts.map((product) => {
-                        const isSelected = formData.products?.includes(product) || false;
-                        return (
-                          <label
-                            key={product}
-                            className="flex cursor-pointer items-center gap-2 border-b border-slate-100 dark:border-slate-800 px-3 py-2 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-800"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={(e) => {
-                                const currentProducts = formData.products || [];
-                                if (e.target.checked) {
-                                  setFormData({
-                                    ...formData,
-                                    products: [...currentProducts, product],
-                                  });
-                                } else {
-                                  setFormData({
-                                    ...formData,
-                                    products: currentProducts.filter((p) => p !== product),
-                                  });
-                                }
-                              }}
-                              className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
-                            />
-                            <span className="text-sm text-slate-700 dark:text-slate-300">{product}</span>
-                          </label>
-                        );
-                      })}
+                    <div className="relative z-10 mt-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
+                      <div className="sticky top-0 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2">
+                        <Input
+                          ref={productSearchInputRef}
+                          type="text"
+                          value={productSearchQuery}
+                          onChange={(e) => setProductSearchQuery(e.target.value)}
+                          onKeyDown={(e) => e.stopPropagation()}
+                          placeholder="Search products..."
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="max-h-44 overflow-y-auto">
+                        {availableProducts.length === 0 ? (
+                          <p className="px-3 py-4 text-sm text-slate-500 dark:text-slate-400">
+                            No products available. Upload a product zip (Data Upload → Products) or add sales data to
+                            see products here.
+                          </p>
+                        ) : (() => {
+                          const q = productSearchQuery.trim().toLowerCase();
+                          const filtered =
+                            q === ""
+                              ? availableProducts
+                              : availableProducts.filter((p) => p.toLowerCase().includes(q));
+                          return filtered.length > 0 ? (
+                            filtered.map((product) => {
+                              const isSelected = formData.products?.includes(product) || false;
+                              return (
+                                <label
+                                  key={product}
+                                  className="flex cursor-pointer items-center gap-2 border-b border-slate-100 dark:border-slate-800 px-3 py-2 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(e) => {
+                                      const currentProducts = formData.products || [];
+                                      if (e.target.checked) {
+                                        setFormData({
+                                          ...formData,
+                                          products: [...currentProducts, product],
+                                        });
+                                      } else {
+                                        setFormData({
+                                          ...formData,
+                                          products: currentProducts.filter((p) => p !== product),
+                                        });
+                                      }
+                                    }}
+                                    className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
+                                  />
+                                  <span className="text-sm text-slate-700 dark:text-slate-300">{product}</span>
+                                </label>
+                              );
+                            })
+                          ) : (
+                            <p className="px-3 py-4 text-sm text-slate-500 dark:text-slate-400">
+                              No products match &quot;{productSearchQuery}&quot;
+                            </p>
+                          );
+                        })()}
+                      </div>
                     </div>
                   )}
                 </>
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    No products found in this experiment. Enter products manually (comma-separated):
-                  </p>
-                  <Input
-                    id="manual-products"
-                    type="text"
-                    value={formData.products?.join(", ") ?? ""}
-                    placeholder="Product 1, Product 2, Product 3"
-                    onChange={(e) => {
-                      const products = e.target.value
-                        .split(",")
-                        .map((p) => p.trim())
-                        .filter((p) => p.length > 0);
-                      setFormData({
-                        ...formData,
-                        products: products,
-                      });
-                    }}
-                    className="rounded-md border border-slate-200 dark:border-slate-700"
-                  />
-                </div>
               )}
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {formData.products && formData.products.length > 0
@@ -857,71 +857,36 @@ export function RecommendationBoard() {
                 <p className="text-sm font-semibold text-green-800 dark:text-green-200">
                   Campaign Generated Successfully!
                 </p>
-                <div className="mt-3 space-y-3">
-                  <div className="rounded border border-green-200 dark:border-green-800 bg-white dark:bg-slate-800 p-4">
-                    <div className="font-semibold text-base text-slate-800 dark:text-slate-100 mb-2">
-                      {generationResult.campaign_name}
-                    </div>
-                    <div className="text-sm text-slate-600 dark:text-slate-300 mb-3">
-                      <div><strong>Campaign ID:</strong> {generationResult.campaign_id}</div>
-                      <div><strong>Objective:</strong> {generationResult.objective}</div>
-                      {generationResult.audience_segment && (
-                        <div><strong>Audience:</strong> {generationResult.audience_segment}</div>
-                      )}
-                    </div>
-                    
-                    <div className="border-t border-slate-200 dark:border-slate-700 pt-3 mt-3">
-                      <div className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Email Content:</div>
-                      <div className="text-sm text-slate-600 dark:text-slate-400 space-y-1">
-                        <div><strong>Subject:</strong> {generationResult.email_content.subject_line}</div>
-                        {generationResult.email_content.preview_text && (
-                          <div><strong>Preview:</strong> {generationResult.email_content.preview_text}</div>
-                        )}
-                        <div className="mt-2 p-2 bg-slate-50 dark:bg-slate-900 rounded text-xs">
-                          {generationResult.email_content.body}
-                        </div>
-                        <div className="mt-2"><strong>CTA:</strong> {generationResult.email_content.call_to_action}</div>
-                      </div>
-                    </div>
-
-                    {generationResult.subject_line_variations && generationResult.subject_line_variations.length > 0 && (
-                      <div className="border-t border-slate-200 dark:border-slate-700 pt-3 mt-3">
-                        <div className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Subject Line Variations:</div>
-                        <ul className="list-disc list-inside text-sm text-slate-600 dark:text-slate-400 space-y-1">
-                          {generationResult.subject_line_variations.map((line: string, idx: number) => (
-                            <li key={idx}>{line}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {generationResult.design_recommendations && generationResult.design_recommendations.length > 0 && (
-                      <div className="border-t border-slate-200 dark:border-slate-700 pt-3 mt-3">
-                        <div className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Design Recommendations:</div>
-                        <ul className="list-disc list-inside text-sm text-slate-600 dark:text-slate-400 space-y-1">
-                          {generationResult.design_recommendations.map((rec: string, idx: number) => (
-                            <li key={idx}>{rec}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {generationResult.expected_metrics && (
-                      <div className="border-t border-slate-200 dark:border-slate-700 pt-3 mt-3">
-                        <div className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Expected Metrics:</div>
-                        <div className="text-sm text-slate-600 dark:text-slate-400 space-y-1">
-                          {generationResult.expected_metrics.estimated_open_rate && (
-                            <div>Open Rate: {generationResult.expected_metrics.estimated_open_rate}</div>
-                          )}
-                          {generationResult.expected_metrics.estimated_click_rate && (
-                            <div>Click Rate: {generationResult.expected_metrics.estimated_click_rate}</div>
-                          )}
-                          {generationResult.expected_metrics.estimated_conversion_rate && (
-                            <div>Conversion Rate: {generationResult.expected_metrics.estimated_conversion_rate}</div>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
+                  <div className="text-sm text-slate-600 dark:text-slate-300">
+                    <strong>{generationResult.campaign_name}</strong>
+                    <span className="ml-2 text-slate-500 dark:text-slate-400">({generationResult.campaign_id})</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEmailPreviewOpen(true)}
+                    >
+                      Preview Email
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generationResult.html_email);
+                        const btn = document.activeElement as HTMLButtonElement;
+                        if (btn) {
+                          const prev = btn.textContent;
+                          btn.textContent = "Copied!";
+                          setTimeout(() => { btn.textContent = prev; }, 1500);
+                        }
+                      }}
+                    >
+                      Copy HTML
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -934,6 +899,34 @@ export function RecommendationBoard() {
           </Button>
           <Button onClick={handleGenerateCampaigns} disabled={generating}>
             {generating ? "Generating..." : "Generate Campaigns"}
+          </Button>
+        </DialogFooter>
+      </Dialog>
+
+      {/* Preview Email dialog: iframe with generated HTML */}
+      <Dialog
+        open={emailPreviewOpen && !!generationResult?.html_email}
+        onOpenChange={(open) => {
+          setEmailPreviewOpen(open);
+        }}
+        title="Preview Email"
+        description={generationResult ? `${generationResult.campaign_name}` : undefined}
+        contentClassName="max-w-5xl"
+      >
+        <DialogContent>
+          <div className="rounded border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 overflow-hidden min-h-[480px]">
+            <iframe
+              title="Email preview"
+              srcDoc={prepareCampaignHtmlForPreview(generationResult?.html_email ?? "")}
+              className="w-full min-h-[480px] border-0 bg-white"
+              sandbox="allow-same-origin"
+              style={{ minHeight: "70vh" }}
+            />
+          </div>
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setEmailPreviewOpen(false)}>
+            Close
           </Button>
         </DialogFooter>
       </Dialog>

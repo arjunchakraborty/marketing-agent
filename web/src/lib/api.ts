@@ -1,11 +1,30 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api";
 
+/** Backend origin for resolving image URLs in HTML previews. */
+export const API_ORIGIN = API_BASE.replace(/\/api\/?$/, "");
+
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const message = await response.text();
     throw new Error(message || `Request failed with status ${response.status}`);
   }
   return response.json() as Promise<T>;
+}
+
+/**
+ * Prepare campaign HTML for iframe preview by injecting a <base> tag
+ * so that relative image URLs (e.g. /api/v1/images/...) resolve against
+ * the backend origin instead of the frontend origin.
+ */
+export function prepareCampaignHtmlForPreview(html: string): string {
+  if (!html) return html;
+  const baseTag = `<base href="${API_ORIGIN}" />`;
+  // Insert <base> right after <head> if present
+  if (html.includes("<head>")) {
+    return html.replace("<head>", `<head>\n    ${baseTag}`);
+  }
+  // Fallback: prepend
+  return baseTag + html;
 }
 
 export async function fetchHealth() {
@@ -98,6 +117,8 @@ export interface CampaignSearchResult {
   metadata: any;
   similarity_score: number;
   document?: string | any; // Full document content
+  has_image_analysis?: boolean;
+  image_analysis_count?: number;
 }
 
 export interface VectorSearchResponse {
@@ -245,14 +266,19 @@ export async function uploadShopifyIntegrationZip(
 }
 
 export async function uploadVectorDbZip(
-  file: File
+  file: File,
+  options?: { replaceCollection?: boolean }
 ): Promise<VectorDbZipUploadResponse> {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("collection_name", "UCO_Gear_Campaigns");
   formData.append("overwrite_existing", "true");
 
-  const response = await fetch(`${API_BASE}/v1/ingestion/upload/vector-db`, {
+  const url = new URL(`${API_BASE}/v1/ingestion/upload/vector-db`);
+  if (options?.replaceCollection) {
+    url.searchParams.set("replace_collection", "true");
+  }
+  const response = await fetch(url.toString(), {
     method: "POST",
     body: formData,
   });
@@ -345,6 +371,9 @@ export interface ExperimentResultsResponse {
   campaign_analyses: any[];
   image_analyses: any[];
   correlations: any[];
+  hero_image_prompts?: string[] | null;
+  text_prompts?: string[] | null;
+  call_to_action_prompts?: string[] | null;
 }
 
 export async function getExperimentResults(
@@ -357,6 +386,38 @@ export async function getExperimentResults(
 export async function listExperiments(): Promise<ExperimentResultsResponse[]> {
   const response = await fetch(`${API_BASE}/v1/experiments/`);
   return handleResponse<ExperimentResultsResponse[]>(response);
+}
+
+export interface ProductPerformance {
+  product_name: string;
+  total_sales: number;
+  order_count: number;
+}
+
+export interface ProductPerformanceResponse {
+  products: ProductPerformance[];
+  count: number;
+  generated_at?: string;
+}
+
+export async function getTopProducts(limit: number = 100): Promise<ProductPerformanceResponse> {
+  const response = await fetch(`${API_BASE}/v1/products/top?limit=${Math.min(limit, 100)}`);
+  return handleResponse<ProductPerformanceResponse>(response);
+}
+
+export interface VectorProductItem {
+  product_name: string;
+}
+
+export interface VectorProductListResponse {
+  products: VectorProductItem[];
+  count: number;
+  collection_name: string;
+}
+
+export async function getProductsFromVector(): Promise<VectorProductListResponse> {
+  const response = await fetch(`${API_BASE}/v1/products/from-vector`);
+  return handleResponse<VectorProductListResponse>(response);
 }
 
 export interface CampaignGenerationRequest {
@@ -382,6 +443,7 @@ export interface CampaignGenerationResponse {
 
 // Email Campaign Generation (using CampaignGenerationService)
 export interface EmailCampaignGenerationRequest {
+  experiment_run_id?: string;
   campaign_name?: string;
   objective: string;
   audience_segment?: string;
@@ -401,41 +463,10 @@ export interface EmailCampaignGenerationRequest {
   hero_image_prompt?: string;
 }
 
-export interface EmailContent {
-  subject_line: string;
-  preview_text?: string;
-  greeting: string;
-  body: string;
-  call_to_action: string;
-  closing: string;
-  footer?: string;
-  html_template?: string;
-  hero_image_url?: string;
-  product_image_urls?: string[];
-}
-
-export interface PastCampaignReference {
-  campaign_id: string;
-  campaign_name?: string;
-  similarity_score: number;
-  insights_used: string[];
-}
-
 export interface EmailCampaignResponse {
   campaign_id: string;
   campaign_name: string;
-  objective: string;
-  audience_segment?: string;
-  email_content: EmailContent;
-  subject_line_variations: string[];
-  design_recommendations: string[];
-  talking_points: string[];
-  expected_metrics?: {
-    estimated_open_rate?: string;
-    estimated_click_rate?: string;
-    estimated_conversion_rate?: string;
-  };
-  past_campaign_references: PastCampaignReference[];
+  html_email: string;
   generated_at: string;
 }
 

@@ -1,16 +1,18 @@
 """Service for generating email campaigns using AI."""
 import json
 import logging
-from operator import truediv
+import re
 import uuid
+from operator import truediv
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional, Any
 
 from sqlalchemy import text
 
 from ..core.config import settings
 from ..db.session import engine
-from ..schemas.campaigns import EmailCampaignResponse, EmailContent, PastCampaignReference
+from ..schemas.campaigns import EmailCampaignResponse, EmailContent
 from .html_template_service import HTMLTemplateService
 from .image_generation_service import ImageGenerationService
 from .comfyui_cloud_service import ComfyUICloudService
@@ -19,6 +21,84 @@ from .llm_service import LLMService
 from .rag_campaign_service import RAGCampaignService
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_json_from_llm_response(content: str) -> Optional[Dict[str, Any]]:
+    """
+    Extract and parse JSON from LLM output that may be wrapped in markdown or contain extra text.
+    Tries: direct parse, markdown strip, then first balanced {...} extraction.
+    Returns None if parsing fails.
+    """
+    if not content or not content.strip():
+        return None
+    raw = content.strip()
+
+    # Strip markdown code blocks
+    if "```json" in raw:
+        try:
+            raw = raw.split("```json", 1)[1].split("```", 1)[0].strip()
+        except IndexError:
+            pass
+    elif "```" in raw:
+        try:
+            raw = raw.split("```", 1)[1].split("```", 1)[0].strip()
+        except IndexError:
+            pass
+
+    # Try direct parse
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    # Find first { and extract balanced {...}
+    start = raw.find("{")
+    if start == -1:
+        return None
+    depth = 0
+    in_string = False
+    escape = False
+    quote = None
+    end = -1
+    i = start
+    while i < len(raw):
+        c = raw[i]
+        if escape:
+            escape = False
+            i += 1
+            continue
+        if c == "\\" and in_string:
+            escape = True
+            i += 1
+            continue
+        if not in_string:
+            if c in ("'", '"'):
+                in_string = True
+                quote = c
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i
+                    break
+        else:
+            if c == quote:
+                in_string = False
+        i += 1
+    if end != -1:
+        try:
+            return json.loads(raw[start : end + 1])
+        except json.JSONDecodeError:
+            pass
+
+    # Last resort: fix common issues and retry
+    fixed = re.sub(r",\s*}", "}", raw)
+    fixed = re.sub(r",\s*]", "]", fixed)
+    try:
+        return json.loads(fixed)
+    except json.JSONDecodeError:
+        return None
 
 
 class CampaignGenerationService:
@@ -46,6 +126,7 @@ class CampaignGenerationService:
         objective: str,
         audience_segment: Optional[str] = None,
         products: Optional[List[str]] = None,
+        product_context: Optional[str] = None,
         product_images: Optional[List[str]] = None,
         tone: str = "professional",
         key_message: Optional[str] = None,
@@ -88,10 +169,21 @@ class CampaignGenerationService:
         if not self.llm_service:
             raise ValueError("LLM service not available. Please configure API keys.")
 
+        # Look up product_context only for the products selected by the user (hero image, CTA, key message prompts)
+        if product_context is None and products:
+            try:
+                from .vector_db_service import get_product_context_for_prompts
+                product_context = get_product_context_for_prompts(product_names=products, max_products=25)
+            except Exception as e:
+                logger.warning(f"Could not fetch product context for selected products: {e}")
+                product_context = None
+            if not product_context and products:
+                product_context = "Products to feature: " + ", ".join(products[:15])
+
         campaign_id = str(uuid.uuid4())
         final_campaign_name = campaign_name or f"Campaign {campaign_id[:8]}"
 
-        logger.info(f"Generating email campaign: id={campaign_id}, objective={objective}")
+        logger.info(f"Generating email campaign: id={campaign_id}, objective={objective}, products={len(products or [])}")
 
         # Stage 1: RAG for Hero Image Generation
         hero_image_url = None
@@ -100,6 +192,7 @@ class CampaignGenerationService:
         hero_image_prompt = self._build_hero_image_rag_prompt(
             objective=objective,
             products=products,
+            product_context=product_context,
             product_images=product_images,
             tone=tone,
             design_guidance=design_guidance,
@@ -107,6 +200,7 @@ class CampaignGenerationService:
             use_past_campaigns=use_past_campaigns,
             num_similar_campaigns=num_similar_campaigns,
         )
+        logger.info(f"RAG prompt for hero image generation: {hero_image_prompt}")
         # Get settings from config
         workflow_override = None
         if settings.comfyui_workflow_path:
@@ -115,6 +209,7 @@ class CampaignGenerationService:
         
         # Generate hero image using image generation service
         try:
+            
             hero_image_url = self.image_service.generate_hero_image(
                 prompt=hero_image_prompt,
                 style=tone,
@@ -125,10 +220,17 @@ class CampaignGenerationService:
                 logger.info(f"Successfully generated hero image: {hero_image_url}")
             else:
                 logger.warning("Hero image generation returned None, continuing without hero image")
+            
         except Exception as e:
             logger.error(f"Failed to generate hero image: {str(e)}", exc_info=True)
-            # Continue without hero image if generation fails
             hero_image_url = None
+
+        # Placeholder hero image until image generation is re-enabled
+        if not hero_image_url:
+            placeholder = Path(__file__).resolve().parents[2] / "storage" / "generated_images" / "cab0dc82-6a6b-4ad7-8f04-99812df532cc.png"
+            if placeholder.is_file():
+                hero_image_url = str(placeholder)
+                logger.info(f"Using placeholder hero image: {hero_image_url}")
 
         # Stage 2: RAG for Email Content Generation
         logger.info("Stage 2: Building RAG prompt for email content generation")
@@ -136,6 +238,7 @@ class CampaignGenerationService:
             objective=objective,
             audience_segment=audience_segment,
             products=products,
+            product_context=product_context,
             tone=tone,
             key_message=key_message,
             call_to_action=call_to_action,
@@ -150,6 +253,8 @@ class CampaignGenerationService:
 
         # Step 4: Generate email content using LLM
         email_data = self._generate_email_content(email_content_prompt)
+        if not isinstance(email_data, dict):
+            email_data = {}
 
         logger.debug(f"Generated email content: {email_data}")
 
@@ -189,15 +294,33 @@ class CampaignGenerationService:
             key_message=key_message,
         )
 
-        # Step 7: Build email content object
+        # Step 7: Build email content object (coerce list values from LLM to strings)
+        def _str_field(val: Any, default: str = "") -> str:
+            if val is None:
+                return default
+            if isinstance(val, str):
+                return val
+            if isinstance(val, list):
+                return "\n".join(str(x) for x in val) if val else default
+            return str(val)
+
+        def _str_field_optional(val: Any) -> Optional[str]:
+            if val is None:
+                return None
+            s = _str_field(val, "")
+            return s if s else None
+
         email_content = EmailContent(
-            subject_line=email_data.get("subject_line", subject_line_variations[0] if subject_line_variations else "New Campaign"),
-            preview_text=email_data.get("preview_text") if include_preview_text else None,
-            greeting=email_data.get("greeting", "Hello,"),
-            body=email_data.get("body", ""),
-            call_to_action=email_data.get("call_to_action", call_to_action or "Learn More"),
-            closing=email_data.get("closing", "Best regards,"),
-            footer=email_data.get("footer"),
+            subject_line=_str_field(
+                email_data.get("subject_line"),
+                subject_line_variations[0] if subject_line_variations else "New Campaign",
+            ),
+            preview_text=_str_field_optional(email_data.get("preview_text")) if include_preview_text else None,
+            greeting=_str_field(email_data.get("greeting"), "Hello,"),
+            body=_str_field(email_data.get("body"), ""),
+            call_to_action=_str_field(email_data.get("call_to_action"), call_to_action or "Learn More"),
+            closing=_str_field(email_data.get("closing"), "Best regards,"),
+            footer=_str_field_optional(email_data.get("footer")),
             hero_image_url=hero_image_url,
             product_image_urls=product_images,
         )
@@ -232,24 +355,15 @@ class CampaignGenerationService:
         return EmailCampaignResponse(
             campaign_id=campaign_id,
             campaign_name=final_campaign_name,
-            objective=objective,
-            audience_segment=audience_segment,
-            email_content=email_content,
-            subject_line_variations=subject_line_variations,
-            design_recommendations=design_recommendations,
-            talking_points=talking_points,
-            past_campaign_references=[],  # TODO: Populate from RAG results if needed
-            expected_metrics={
-                "estimated_open_rate": "20-25%",
-                "estimated_click_rate": "3-5%",
-                "estimated_conversion_rate": "1-2%",
-            },
+            html_email=email_content.html_template or "",
+            generated_at=datetime.utcnow(),
         )
 
     def _build_hero_image_rag_prompt(
         self,
         objective: str,
         products: Optional[List[str]],
+        product_context: Optional[str],
         product_images: Optional[List[str]],
         tone: str,
         design_guidance: Optional[str],
@@ -259,12 +373,12 @@ class CampaignGenerationService:
     ) -> str:
         """
         Build RAG-enhanced prompt for hero image generation.
-        
-        Stage 1: Focuses on visual/image aspects from past campaigns.
+        Final prompt incorporates product details (product_context) in addition to RAG insights.
         
         Args:
             objective: Campaign objective
             products: Products to feature
+            product_context: Product names and descriptions for prompt
             product_images: Product image URLs/paths
             tone: Visual tone/style
             design_guidance: Design preferences
@@ -277,12 +391,19 @@ class CampaignGenerationService:
         """
         prompt_parts = []
         
+       
+        
         # Base prompt from user input or objective
         if hero_image_prompt:
             prompt_parts.append(hero_image_prompt)
         else:
             prompt_parts.append(f"{objective} email hero image")
         
+        # Product details first so they are incorporated into the final prompt
+
+        if product_context and product_context.strip():
+            prompt_parts.append(f"Product details (feature these): {product_context[:800]}")
+
         # Add product information
         if products:
             prompt_parts.append(f"featuring {', '.join(products[:2])}")
@@ -353,6 +474,7 @@ class CampaignGenerationService:
         objective: str,
         audience_segment: Optional[str],
         products: Optional[List[str]],
+        product_context: Optional[str],
         tone: str,
         key_message: Optional[str],
         call_to_action: Optional[str],
@@ -366,13 +488,13 @@ class CampaignGenerationService:
     ) -> str:
         """
         Build RAG-enhanced prompt for email content generation.
-        
-        Stage 2: Focuses on text/content aspects from past campaigns.
+        Final prompt incorporates product details (product_context) for key message and CTA in addition to RAG.
         
         Args:
             objective: Campaign objective
             audience_segment: Target audience
             products: Products to promote
+            product_context: Product names and descriptions for key message and CTA
             tone: Email tone
             key_message: Key message/value proposition
             call_to_action: Desired CTA text
@@ -391,6 +513,10 @@ class CampaignGenerationService:
             "Generate a complete email campaign with the following requirements:",
             f"Objective: {objective}",
         ]
+
+        if product_context and product_context.strip():
+            prompt_parts.append("\n--- Product details (incorporate into key message, body, and call-to-action) ---")
+            prompt_parts.append(product_context[:1500])
 
         if audience_segment:
             prompt_parts.append(f"Target Audience: {audience_segment}")
@@ -723,6 +849,7 @@ class CampaignGenerationService:
             objective=objective,
             audience_segment=audience_segment,
             products=products,
+            product_context=None,
             tone=tone,
             key_message=key_message,
             call_to_action=call_to_action,
@@ -811,8 +938,17 @@ class CampaignGenerationService:
             raise
 
     def _generate_email_content_ollama(self, prompt: str) -> Dict[str, str]:
-        """Generate email content using Ollama."""
+        """Generate email content using Ollama. Uses robust JSON extraction and returns fallback on parse failure."""
         client = self.llm_service._get_ollama_client()
+        fallback = {
+            "subject_line": "New Campaign",
+            "preview_text": "Check out our latest offer",
+            "greeting": "Hello,",
+            "body": "We're excited to share something special with you.",
+            "call_to_action": "Learn More",
+            "closing": "Best regards,",
+            "footer": None,
+        }
 
         full_prompt = f"{prompt}\n\nReturn ONLY valid JSON, no markdown formatting."
 
@@ -831,17 +967,24 @@ class CampaignGenerationService:
             )
             response.raise_for_status()
             result = response.json()
-            content = result["message"]["content"].strip()
-            # Try to extract JSON if wrapped in markdown
-            if "```json" in content:
-                content = content.split("```json")[1].split("```")[0].strip()
-            elif "```" in content:
-                content = content.split("```")[1].split("```")[0].strip()
-            data = json.loads(content)
-            return data
+            logger.info(f"Ollama response: {result}")
+            content = result.get("message", {}).get("content", "")
+            if not content:
+                logger.warning("Ollama returned empty content, using fallback")
+                return fallback
+            content = content.strip()
+            data = _extract_json_from_llm_response(content)
+            if data and isinstance(data, dict):
+                return data
+            logger.warning(
+                "Ollama email response was not valid JSON, using fallback. "
+                "Response length: %d",
+                len(content),
+            )
+            return fallback
         except Exception as e:
-            logger.error(f"Ollama email generation failed: {str(e)}")
-            raise
+            logger.warning(f"Ollama email generation failed: {str(e)}, using fallback")
+            return fallback
 
     def _generate_subject_lines(
         self,
@@ -1078,62 +1221,36 @@ class CampaignGenerationService:
             return None
 
     def _row_to_campaign_response(self, row: Dict) -> EmailCampaignResponse:
-        """Convert database row to EmailCampaignResponse."""
-        # Parse JSON fields
-        subject_line_variations = []
-        if row.get("subject_line_variations"):
+        """Convert database row to EmailCampaignResponse (html_email from stored template)."""
+        created = datetime.utcnow()
+        if row.get("created_at"):
             try:
-                subject_line_variations = json.loads(row["subject_line_variations"])
-            except:
+                ts = str(row["created_at"]).replace("Z", "+00:00")
+                created = datetime.fromisoformat(ts)
+            except (ValueError, TypeError):
                 pass
 
-        design_recommendations = []
-        if row.get("design_recommendations"):
-            try:
-                design_recommendations = json.loads(row["design_recommendations"])
-            except:
-                pass
-
-        talking_points = []
-        if row.get("talking_points"):
-            try:
-                talking_points = json.loads(row["talking_points"])
-            except:
-                pass
-
-        product_image_urls = None
-        if row.get("product_image_urls"):
-            try:
-                product_image_urls = json.loads(row["product_image_urls"])
-            except:
-                pass
-
-        email_content = EmailContent(
-            subject_line=row.get("subject_line", ""),
-            preview_text=row.get("preview_text"),
-            greeting=row.get("greeting", ""),
-            body=row.get("body", ""),
-            call_to_action=row.get("call_to_action", ""),
-            closing=row.get("closing", ""),
-            footer=row.get("footer"),
-            html_template=row.get("html_template"),
-            hero_image_url=row.get("hero_image_url"),
-            product_image_urls=product_image_urls,
-        )
+        html_email = row.get("html_template") or ""
+        # Convert any filesystem storage paths in the HTML to API URLs
+        html_email = self._fix_image_paths_in_html(html_email)
 
         return EmailCampaignResponse(
             campaign_id=row.get("campaign_id", ""),
             campaign_name=row.get("campaign_name", ""),
-            objective=row.get("objective", ""),
-            audience_segment=row.get("audience_segment"),
-            email_content=email_content,
-            subject_line_variations=subject_line_variations,
-            design_recommendations=design_recommendations,
-            talking_points=talking_points,
-            expected_metrics={
-                "estimated_open_rate": "20-25%",
-                "estimated_click_rate": "3-5%",
-                "estimated_conversion_rate": "1-2%",
-            },
+            html_email=html_email,
+            generated_at=created,
         )
+
+    @staticmethod
+    def _fix_image_paths_in_html(html: str) -> str:
+        """Replace filesystem storage paths in img src attributes with API URLs."""
+        if not html or "/storage/" not in html:
+            return html
+
+        def _replace_src(match: re.Match) -> str:
+            path = match.group(1)
+            url = HTMLTemplateService.storage_path_to_url(path)
+            return f'src="{url}"'
+
+        return re.sub(r'src="([^"]*?/storage/[^"]*)"', _replace_src, html)
 

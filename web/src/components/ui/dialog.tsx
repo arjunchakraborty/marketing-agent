@@ -8,10 +8,12 @@ interface DialogProps {
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: string;
+  /** Optional class for the dialog panel (e.g. "max-w-5xl" for a wider popup). Defaults to max-w-lg. */
+  contentClassName?: string;
   children: React.ReactNode;
 }
 
-export function Dialog({ open, onOpenChange, title, description, children }: DialogProps) {
+export function Dialog({ open, onOpenChange, title, description, contentClassName, children }: DialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,7 +33,7 @@ export function Dialog({ open, onOpenChange, title, description, children }: Dia
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70 p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onOpenChange(false);
@@ -40,7 +42,7 @@ export function Dialog({ open, onOpenChange, title, description, children }: Dia
     >
       <div
         ref={dialogRef}
-        className="relative w-full max-w-lg rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800 p-6"
+        className={`relative w-full rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800 p-6 ${contentClassName ?? "max-w-lg"}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4">

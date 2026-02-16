@@ -124,6 +124,34 @@ source .venv/bin/activate
 python scripts/init_database.py
 ```
 
+**Troubleshooting "Failed to import encodings module" error:**
+
+This error usually means the virtual environment is corrupted. Recreate it:
+
+**Quick fix (recommended):**
+```bash
+cd backend
+bash scripts/fix_venv.sh
+```
+
+**Manual fix:**
+```bash
+cd backend
+# Remove the corrupted venv
+rm -rf .venv
+
+# Recreate with Python 3.12
+python3.12 -m venv .venv
+source .venv/bin/activate
+
+# Upgrade pip and install dependencies
+pip install --upgrade pip setuptools wheel
+pip install -e '.[dev]'
+
+# Now try again
+python scripts/init_database.py
+```
+
 This creates all required tables:
 - Cache tables (KPI precomputed, prompt-to-SQL cache)
 - Campaign analysis tables (campaign_analysis, image_analysis_results, etc.)

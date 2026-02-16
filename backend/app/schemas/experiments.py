@@ -89,6 +89,9 @@ class ExperimentResultsResponse(BaseModel):
     campaign_analyses: List[CampaignAnalysisResult] = Field(default_factory=list)
     image_analyses: List[ImageAnalysisStoredResult] = Field(default_factory=list)
     correlations: List[VisualElementCorrelationStored] = Field(default_factory=list)
+    hero_image_prompts: Optional[List[str]] = Field(None, description="Hero image prompts generated from experiment")
+    text_prompts: Optional[List[str]] = Field(None, description="Text prompts generated from experiment")
+    call_to_action_prompts: Optional[List[str]] = Field(None, description="Call to action prompts generated from experiment")
 
 
 class CampaignGenerationRequest(BaseModel):

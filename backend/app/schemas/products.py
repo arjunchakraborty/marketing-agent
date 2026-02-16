@@ -30,3 +30,24 @@ class InventoryAlertResponse(BaseModel):
     count: int
     generated_at: datetime = Field(default_factory=datetime.utcnow)
 
+
+class VectorProductItem(BaseModel):
+    """Product from vector DB product collection metadata."""
+
+    product_name: str
+    brand: str = ""
+    category: str = ""
+    description: str = ""
+    price: str = ""
+    sale_price: str = ""
+    hyperlink: str = ""
+    stored_images: int = 0
+
+
+class VectorProductListResponse(BaseModel):
+    """List of products from a vector database product collection."""
+
+    products: List[VectorProductItem]
+    count: int
+    collection_name: str = ""
+

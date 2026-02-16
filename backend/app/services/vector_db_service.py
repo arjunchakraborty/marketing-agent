@@ -12,6 +12,36 @@ from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Default product collection name (used by ingestion when none provided)
+DEFAULT_PRODUCT_COLLECTION_NAME = "UCO_Gear_Products"
+
+
+def delete_collection_if_exists(collection_name: str) -> bool:
+    """
+    Delete a ChromaDB collection by name so it can be recreated (e.g. with cosine).
+    Uses the same vector_db_path as VectorDBService. Returns True if deleted.
+    """
+    if not CHROMADB_AVAILABLE:
+        return False
+    vector_path = Path(settings.vector_db_path)
+    if not vector_path.is_absolute():
+        backend_dir = Path(__file__).parent.parent.parent
+        vector_db_path = backend_dir / vector_path
+    else:
+        vector_db_path = vector_path
+    client = chromadb.PersistentClient(
+        path=str(vector_db_path),
+        settings=ChromaSettings(anonymized_telemetry=False),
+    )
+    try:
+        client.delete_collection(name=collection_name)
+        logger.info(f"Deleted collection for replace: {collection_name}")
+        return True
+    except Exception:
+        logger.debug(f"Collection {collection_name} not found or already deleted")
+        return False
+
+
 # Store the import error for better error messages
 _CHROMADB_IMPORT_ERROR: Optional[Exception] = None
 
@@ -63,15 +93,36 @@ class VectorDBService:
             )
             logger.info(f"Found existing collection: {collection_name}")
         except Exception:
-            # Collection doesn't exist, create it
+            # Collection doesn't exist, create it (use cosine for semantic text search)
             self.collection = self.client.create_collection(
                 name=collection_name,
-                metadata={"description": "Campaign analysis embeddings"}
+                metadata={
+                    "description": "Campaign analysis embeddings",
+                    "hnsw:space": "cosine",
+                }
             )
             logger.info(f"Created new collection: {collection_name}")
         
         logger.info(f"Initialized vector database at {self.vector_db_path}")
-    
+
+    def _distance_to_similarity(self, distance: float) -> float:
+        """
+        Convert ChromaDB distance to a 0-1 similarity score.
+        ChromaDB uses L2 by default; we now create collections with cosine.
+        - Cosine: distance = 1 - cosine_similarity (approx), so similarity = 1 - distance, clamped to [0, 1].
+        - L2: unbounded; use 1/(1+distance) so result is in (0, 1] and higher similarity = lower distance.
+        """
+        try:
+            meta = getattr(self.collection, "metadata", None) or {}
+            space = (meta or {}).get("hnsw:space", "l2")
+        except Exception:
+            space = "l2"
+        if space == "cosine":
+            # Cosine distance: 0 = identical, 2 = opposite. similarity = 1 - distance, clamp to [0,1]
+            return max(0.0, min(1.0, 1.0 - float(distance)))
+        # L2 or unknown: distance is non-negative, unbounded
+        return 1.0 / (1.0 + float(distance))
+
     def _get_embedding_dimension(self) -> int:
         """Get the embedding dimension for the current embedding service."""
         # Create a test embedding to determine dimension
@@ -116,7 +167,10 @@ class VectorDBService:
                 self.client.delete_collection(name=self.collection_name)
                 self.collection = self.client.create_collection(
                     name=self.collection_name,
-                    metadata={"description": "Campaign analysis embeddings"}
+                    metadata={
+                        "description": "Campaign analysis embeddings",
+                        "hnsw:space": "cosine",
+                    }
                 )
                 logger.warning(f"Recreated collection (lost {old_count} documents). Please re-import data.")
             else:
@@ -126,7 +180,10 @@ class VectorDBService:
         """Create a new collection."""
         return self.client.create_collection(
             name=self.collection_name,
-            metadata={"description": "Campaign analysis embeddings"}
+            metadata={
+                "description": "Campaign analysis embeddings",
+                "hnsw:space": "cosine",
+            }
         )
 
     def create_embedding(self, text: str) -> List[float]:
@@ -334,15 +391,15 @@ class VectorDBService:
            # "products": campaign_semantic.products_promoted
         }
         
-        # Store in vector database
-        self.collection.add(
+        # Store in vector database (upsert so re-upload replaces existing)
+        self.collection.upsert(
             ids=[campaign_id],
             embeddings=[embedding],
             documents=[text],
             metadatas=[doc_metadata]
         )
         
-        logger.info(f"Added campaign analysis to vector DB: {campaign_id}")
+        logger.info(f"Added/updated campaign analysis in vector DB: {campaign_id}")
 
     def get_campaign_analysis(
         self,
@@ -417,7 +474,7 @@ class VectorDBService:
                 "campaign_id": campaign_id,
                 "analysis": analysis,
                 "metadata": metadata,
-                "similarity_score": 1.0 - distance,  # Convert distance to similarity
+                "similarity_score": self._distance_to_similarity(distance),
                 "document": doc,  # Include raw document
             })
         
@@ -448,26 +505,52 @@ class VectorDBService:
             text_parts.append(f"Product ID: {product_data['product_id']}")
         
         product = product_data.get("product", {})
+
+        # Name
         if "name" in product:
             text_parts.append(f"Product: {product['name']}")
         elif "product_name" in product:
             text_parts.append(f"Product: {product['product_name']}")
         
-        if "description" in product:
-            text_parts.append(f"Description: {product['description']}")
-        elif "product_description" in product:
-            text_parts.append(f"Description: {product['product_description']}")
+        # Brand
+        if "brand" in product:
+            text_parts.append(f"Brand: {product['brand']}")
+        elif "product_brand" in product:
+            text_parts.append(f"Brand: {product['product_brand']}")
         
+        # Category
         if "category" in product:
             text_parts.append(f"Category: {product['category']}")
         elif "product_category" in product:
             text_parts.append(f"Category: {product['product_category']}")
         
-        if "price" in product:
-            text_parts.append(f"Price: ${product['price']}")
-        elif "product_price" in product:
-            text_parts.append(f"Price: ${product['product_price']}")
+        # Description
+        if "description" in product:
+            text_parts.append(f"Description: {product['description']}")
+        elif "product_description" in product:
+            text_parts.append(f"Description: {product['product_description']}")
         
+        # Price
+        if "price" in product:
+            text_parts.append(f"Price: {product['price']}")
+        elif "product_price" in product:
+            text_parts.append(f"Price: {product['product_price']}")
+        
+        # Sale price
+        if "sale_price" in product:
+            text_parts.append(f"Sale Price: {product['sale_price']}")
+        elif "product_sale_price" in product:
+            text_parts.append(f"Sale Price: {product['product_sale_price']}")
+        
+        # Hyperlink / URL
+        if "hyperlink" in product:
+            text_parts.append(f"URL: {product['hyperlink']}")
+        elif "url" in product:
+            text_parts.append(f"URL: {product['url']}")
+        elif "product_url" in product:
+            text_parts.append(f"URL: {product['product_url']}")
+        
+        # SKU (keep for backward compatibility)
         if "sku" in product:
             text_parts.append(f"SKU: {product['sku']}")
         elif "product_sku" in product:
@@ -489,24 +572,36 @@ class VectorDBService:
         # Create embedding
         embedding = self.create_embedding(text)
         
-        # Prepare metadata
-        doc_metadata = {
+        # Prepare metadata — include all product columns for filtering/retrieval
+        # ChromaDB metadata values must be str, int, float, or bool; coerce to str.
+        _description = str(product.get("description") or product.get("product_description", ""))[:512]
+        _url = str(product.get("url") or product.get("hyperlink") or product.get("product_url", ""))
+        doc_metadata: Dict[str, Any] = {
             "product_id": product_id,
             "business_name": product_data.get("business_name", ""),
             "product_name": product.get("name") or product.get("product_name", ""),
+            "brand": product.get("brand") or product.get("product_brand", ""),
+            "category": product.get("category") or product.get("product_category", ""),
+            "description": _description,
+            "url": _url,
+            "hyperlink": _url,
+            "price": str(product.get("price") or product.get("product_price", "")),
+            "sale_price": str(product.get("sale_price") or product.get("product_sale_price", "")),
             "stored_images": len(product_data.get("stored_image_paths", [])),
-            **(metadata or {})
         }
+        # Merge any extra metadata passed by the caller
+        if metadata:
+            doc_metadata.update(metadata)
         
-        # Store in vector database
-        self.collection.add(
+        # Store in vector database (upsert so re-upload replaces existing)
+        self.collection.upsert(
             ids=[product_id],
             embeddings=[embedding],
             documents=[json.dumps(product_data, default=str)],
             metadatas=[doc_metadata]
         )
         
-        logger.info(f"Added product analysis to vector DB: {product_id}")
+        logger.info(f"Added/updated product analysis in vector DB: {product_id}")
 
     def get_product_analysis(
         self,
@@ -571,7 +666,7 @@ class VectorDBService:
                 "product_id": product_id,
                 "product_data": doc,
                 "metadata": metadata,
-                "similarity_score": 1.0 - distance,  # Convert distance to similarity
+                "similarity_score": self._distance_to_similarity(distance),
             })
         
         return similar_products
@@ -666,5 +761,215 @@ def list_all_collections() -> List[str]:
         logger.error(f"Failed to list collections: {str(e)}", exc_info=True)
         return []
 
-    
+
+def get_product_context_for_prompts(
+    product_names: Optional[List[str]] = None,
+    collection_name: str = DEFAULT_PRODUCT_COLLECTION_NAME,
+    max_products: int = 25,
+) -> str:
+    """
+    Build a product context string (names + descriptions) for use in hero image, CTA, and key message prompts.
+    If product_names is given, only those products are included; otherwise up to max_products from the collection.
+    """
+    products = get_all_products(collection_name)
+    if not products:
+        return ""
+    lookup = {p["product_name"].lower().strip(): p for p in products if p.get("product_name")}
+    if product_names:
+        selected = []
+        seen = set()
+        for name in product_names:
+            n = (name or "").strip()
+            if not n or n.lower() in seen:
+                continue
+            seen.add(n.lower())
+            if n.lower() in lookup:
+                selected.append(lookup[n.lower()])
+            else:
+                selected.append({"product_name": n, "description": ""})
+    else:
+        selected = products[:max_products]
+    lines = []
+    for p in selected:
+        name = p.get("product_name", "").strip()
+        desc = (p.get("description") or "").strip()
+        if name:
+            lines.append(f"- {name}: {desc[:500]}" if desc else f"- {name}")
+    return "\n".join(lines) if lines else ""
+
+
+def get_product_names(collection_name: str = DEFAULT_PRODUCT_COLLECTION_NAME) -> List[str]:
+    """
+    Get all product names from the product collection in the vector database.
+    Uses the same VectorDBService + collection.get() pattern as get_all_campaigns().
+    """
+    try:
+        svc = VectorDBService(collection_name=collection_name)
+        # Exact same call pattern as get_all_campaigns() which is proven to work
+        results = svc.collection.get(include=["documents", "metadatas"])
+
+        names: List[str] = []
+        for i, doc_id in enumerate(results["ids"]):
+            metadata = results["metadatas"][i]
+            name = ""
+
+            # 1. metadata.product_name (primary)
+            if isinstance(metadata, dict):
+                name = (metadata.get("product_name") or "").strip()
+
+            # 2. Fallback: parse the stored document JSON
+            if not name:
+                try:
+                    doc = results["documents"][i]
+                    data = json.loads(doc) if isinstance(doc, str) else (doc or {})
+                    product = data.get("product") or data
+                    name = (product.get("name") or product.get("product_name") or "").strip()
+                except (json.JSONDecodeError, TypeError, AttributeError):
+                    pass
+
+            if name:
+                names.append(name)
+
+        unique = sorted(set(names))
+        logger.info(f"get_product_names({collection_name}): {len(unique)} products from {len(results['ids'])} docs")
+        return unique
+    except RuntimeError as e:
+        logger.warning(f"ChromaDB not available for {collection_name}: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"Failed to get product names from {collection_name}: {e}", exc_info=True)
+        return []
+
+
+def get_all_products(
+    collection_name: str = DEFAULT_PRODUCT_COLLECTION_NAME,
+) -> List[Dict[str, Any]]:
+    """
+    Get all products with full metadata from the product collection in the vector database.
+    Returns a list of dicts with keys: product_name, brand, category, description,
+    price, sale_price, hyperlink, stored_images.
+    """
+    try:
+        svc = VectorDBService(collection_name=collection_name)
+        results = svc.collection.get(include=["documents", "metadatas"])
+
+        products: List[Dict[str, Any]] = []
+        for i, doc_id in enumerate(results["ids"]):
+            metadata = results["metadatas"][i] if isinstance(results["metadatas"][i], dict) else {}
+
+            # Try metadata first, then fall back to document JSON
+            name = (metadata.get("product_name") or "").strip()
+            brand = (metadata.get("brand") or "").strip()
+            category = (metadata.get("category") or "").strip()
+            description = (metadata.get("description") or "").strip()
+            price = (metadata.get("price") or "").strip()
+            sale_price = (metadata.get("sale_price") or "").strip()
+            hyperlink = (metadata.get("hyperlink") or "").strip()
+            stored_images = metadata.get("stored_images", 0)
+
+            # Fallback: parse the stored document JSON for missing fields
+            if not name or not description:
+                try:
+                    doc = results["documents"][i]
+                    data = json.loads(doc) if isinstance(doc, str) else (doc or {})
+                    product = data.get("product") or data
+                    if not name:
+                        name = (product.get("name") or product.get("product_name") or "").strip()
+                    if not brand:
+                        brand = (product.get("brand") or product.get("product_brand") or "").strip()
+                    if not category:
+                        category = (product.get("category") or product.get("product_category") or "").strip()
+                    if not description:
+                        description = str(product.get("description") or product.get("product_description") or "").strip()
+                    if not price:
+                        price = str(product.get("price") or product.get("product_price") or "").strip()
+                    if not sale_price:
+                        sale_price = str(product.get("sale_price") or product.get("product_sale_price") or "").strip()
+                    if not hyperlink:
+                        hyperlink = str(product.get("hyperlink") or product.get("url") or product.get("product_url") or "").strip()
+                except (json.JSONDecodeError, TypeError, AttributeError):
+                    pass
+
+            if name:
+                products.append({
+                    "product_name": name,
+                    "brand": brand,
+                    "category": category,
+                    "description": description,
+                    "price": price,
+                    "sale_price": sale_price,
+                    "hyperlink": hyperlink,
+                    "stored_images": stored_images if isinstance(stored_images, int) else 0,
+                })
+
+        # Sort by product name and deduplicate
+        seen = set()
+        unique_products = []
+        for p in sorted(products, key=lambda x: x["product_name"]):
+            if p["product_name"] not in seen:
+                seen.add(p["product_name"])
+                unique_products.append(p)
+
+        logger.info(f"get_all_products({collection_name}): {len(unique_products)} products from {len(results['ids'])} docs")
+        return unique_products
+    except RuntimeError as e:
+        logger.warning(f"ChromaDB not available for {collection_name}: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"Failed to get all products from {collection_name}: {e}", exc_info=True)
+        return []
+
+
+def get_product_images_by_names(
+    product_names: List[str],
+    collection_name: str = DEFAULT_PRODUCT_COLLECTION_NAME,
+) -> List[str]:
+    """
+    Look up selected products in the vector DB and return their stored image paths.
+    """
+    if not product_names:
+        return []
+    try:
+        svc = VectorDBService(collection_name=collection_name)
+        results = svc.collection.get(include=["documents", "metadatas"])
+
+        lookup = {n.lower() for n in product_names}
+        image_paths: List[str] = []
+
+        for i, doc_id in enumerate(results["ids"]):
+            # Resolve product name from metadata or document
+            metadata = results["metadatas"][i]
+            name = ""
+            if isinstance(metadata, dict):
+                name = (metadata.get("product_name") or "").strip()
+            if not name:
+                try:
+                    doc = results["documents"][i]
+                    data = json.loads(doc) if isinstance(doc, str) else (doc or {})
+                    product = data.get("product") or data
+                    name = (product.get("name") or product.get("product_name") or "").strip()
+                except (json.JSONDecodeError, TypeError, AttributeError):
+                    pass
+
+            if not name or name.lower() not in lookup:
+                continue
+
+            # Extract stored_image_paths from the document JSON
+            try:
+                doc = results["documents"][i]
+                data = json.loads(doc) if isinstance(doc, str) else (doc or {})
+                paths = data.get("stored_image_paths") or []
+                if isinstance(paths, list):
+                    image_paths.extend([str(p) for p in paths if p])
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                pass
+
+        logger.info(f"get_product_images_by_names: {len(image_paths)} images for {len(product_names)} products")
+        return image_paths
+    except RuntimeError as e:
+        logger.warning(f"ChromaDB not available for {collection_name}: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"Failed to get product images: {e}", exc_info=True)
+        return []
 

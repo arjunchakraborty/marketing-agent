@@ -183,6 +183,57 @@ export function CampaignStrategyExperiment() {
             )}
 
             {experimentResults && (
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+                <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">Generated Prompts</h3>
+                
+                {experimentResults.hero_image_prompts && experimentResults.hero_image_prompts.length > 0 && (
+                  <div className="mb-4">
+                    <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                      Hero Image Prompts ({experimentResults.hero_image_prompts.length})
+                    </h4>
+                    <ul className="list-disc list-inside space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                      {experimentResults.hero_image_prompts.map((prompt, idx) => (
+                        <li key={idx} className="pl-2">{prompt}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {experimentResults.text_prompts && experimentResults.text_prompts.length > 0 && (
+                  <div className="mb-4">
+                    <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                      Text Prompts ({experimentResults.text_prompts.length})
+                    </h4>
+                    <ul className="list-disc list-inside space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                      {experimentResults.text_prompts.map((prompt, idx) => (
+                        <li key={idx} className="pl-2">{prompt}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {experimentResults.call_to_action_prompts && experimentResults.call_to_action_prompts.length > 0 && (
+                  <div className="mb-4">
+                    <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                      Call to Action Prompts ({experimentResults.call_to_action_prompts.length})
+                    </h4>
+                    <ul className="list-disc list-inside space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                      {experimentResults.call_to_action_prompts.map((prompt, idx) => (
+                        <li key={idx} className="pl-2">{prompt}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {(!experimentResults.hero_image_prompts || experimentResults.hero_image_prompts.length === 0) &&
+                 (!experimentResults.text_prompts || experimentResults.text_prompts.length === 0) &&
+                 (!experimentResults.call_to_action_prompts || experimentResults.call_to_action_prompts.length === 0) && (
+                  <p className="text-sm text-slate-500 dark:text-slate-400">No prompts generated yet</p>
+                )}
+              </div>
+            )}
+
+            {experimentResults && (
               <Tabs defaultValue="campaigns" className="w-full">
                 <TabsList>
                   <TabsTrigger value="campaigns">Campaigns ({experimentResults.campaign_analyses.length})</TabsTrigger>

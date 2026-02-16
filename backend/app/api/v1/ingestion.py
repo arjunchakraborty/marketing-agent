@@ -37,6 +37,7 @@ from ...workflows.klaviyo_ingestion import ingest_klaviyo_csv
 from ...workflows.load_klaviyo_analysis_to_vector_db import (
     load_klaviyo_analysis_to_vector_db,
 )
+from ...services.vector_db_service import delete_collection_if_exists
 from ...workflows.local_csv_ingestion import ingest_directory
 from ...workflows.product_zip_ingestion import load_product_zip_to_vector_db
 
@@ -107,6 +108,7 @@ async def upload_klaviyo_zip(
     collection_name: Optional[str] = Query(None, description="Collection name (defaults to 'UCO_Gear_Campaigns')."),
     business_name: Optional[str] = Query(None, description="Optional name of the business (for metadata only)."),
     overwrite_existing: bool = False,
+    replace_collection: bool = Query(False, description="Delete existing collection before load so it is recreated with cosine (better search)."),
 ) -> CampaignDataZipUploadResponse:
 """
 """
@@ -145,9 +147,12 @@ async def upload_klaviyo_zip(
         # Always use UCO_Gear_Campaigns collection
         if not collection_name or collection_name.strip() == "":
             collection_name = "UCO_Gear_Campaigns"
-        
+
+        if replace_collection:
+            delete_collection_if_exists(collection_name)
+
         logger.info(f"Using collection name: '{collection_name}' for vector DB ingestion")
-        
+
         # Extract zip file
         extract_dir = extract_zip_file(zip_file_path)
         
@@ -381,21 +386,28 @@ async def upload_vector_db_zip(
     file: UploadFile = File(..., description="Zip file containing CSV and image analysis JSONs"),
     collection_name: str = "UCO_Gear_Campaigns",
     overwrite_existing: bool = False,
+    replace_collection: bool = Query(False, description="Delete existing collection before load so it is recreated with cosine (better search)."),
 ) -> ZipIngestionResponse:
     """
     Upload a zip file containing campaign data and image analyses for vector database.
-    
+
     Expected zip structure:
     - email_campaigns.csv (or any CSV file with campaign data)
     - image-analysis-extract/ (folder containing JSON analysis files)
       - *.json files
-    
+
+    If replace_collection is True, the collection is deleted first so the next load
+    creates it with cosine distance (improves semantic search ranking).
+
     The zip file will be extracted, processed, and then deleted.
     """
     zip_file_path = None
     extract_dir = None
-    
+
     try:
+        if replace_collection:
+            delete_collection_if_exists(collection_name)
+
         # Save uploaded file to temporary location
         with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp_file:
             content = await file.read()
@@ -477,7 +489,7 @@ async def upload_vector_db_zip(
 async def upload_products_zip(
     file: UploadFile = File(..., description="Zip file containing product data (CSV/JSON) and product images. Business name will be extracted from zip filename if not provided."),
     business_name: Optional[str] = Query(None, description="Optional name of the business. If not provided, extracted from zip filename."),
-    collection_name: Optional[str] = Query(None, description="Optional custom collection name (default: products_{business_name})"),
+    collection_name: Optional[str] = Query(None, description="Optional custom collection name (default: UCO_Gear_Products)"),
 ) -> ZipIngestionResponse:
     """
     Upload a zip file containing products and images for vector database storage.

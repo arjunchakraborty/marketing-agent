@@ -33,6 +33,7 @@ export function DataUpload() {
   const [activeTab, setActiveTab] = useState<UploadType>("campaign-data");
   const [campaignBusinessName, setCampaignBusinessName] = useState("");
   const [campaignCollectionName, setCampaignCollectionName] = useState("");
+  const [replaceCollection, setReplaceCollection] = useState(false);
   const [productBusinessName, setProductBusinessName] = useState("");
   const [productCollectionName, setProductCollectionName] = useState("");
 
@@ -98,9 +99,9 @@ export function DataUpload() {
 
       switch (activeTab) {
         case "campaign-data":
-          result = await uploadVectorDbZip(
-            selectedFile
-          );
+          result = await uploadVectorDbZip(selectedFile, {
+            replaceCollection,
+          });
           break;
         case "products":
           result = await uploadProductsZip(
@@ -272,6 +273,21 @@ export function DataUpload() {
                 placeholder="Default: campaigns_{business_name} or campaign_data"
               />
             </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="replace-collection"
+                type="checkbox"
+                checked={replaceCollection}
+                onChange={(e) => setReplaceCollection(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              <Label htmlFor="replace-collection" className="cursor-pointer font-normal">
+                Replace collection (recreate with cosine for better search)
+              </Label>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Check this to delete the existing campaign collection before loading so it is recreated with cosine distance. Use once to fix search ranking (e.g. for queries like &quot;Camp Chef Knife&quot;).
+            </p>
           </TabsContent>
 
           <TabsContent value="products" className="space-y-4">
@@ -307,7 +323,7 @@ export function DataUpload() {
                 type="text"
                 value={productCollectionName}
                 onChange={(e) => setProductCollectionName(e.target.value)}
-                placeholder="Default: products_{business_name}"
+                placeholder="Default: UCO_Gear_Products"
               />
             </div>
             <div className="space-y-2">

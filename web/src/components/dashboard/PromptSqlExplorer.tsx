@@ -16,6 +16,7 @@ export function PromptSqlExplorer() {
   const [availableCollections, setAvailableCollections] = useState<string[]>([]);
   const [loadingCollections, setLoadingCollections] = useState(true);
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
+  const [filterImageAnalysis, setFilterImageAnalysis] = useState(false);
 
   const runQuery = useCallback(
     async (promptValue: string, showAllDocs: boolean = false) => {
@@ -192,6 +193,20 @@ export function PromptSqlExplorer() {
             />
             <span className="text-xs text-slate-600 dark:text-slate-400">Show all documents</span>
           </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={filterImageAnalysis}
+              onChange={(e) => setFilterImageAnalysis(e.target.checked)}
+              className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+            />
+            <span className="inline-flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400">
+                <path fillRule="evenodd" d="M1 5.25A2.25 2.25 0 0 1 3.25 3h13.5A2.25 2.25 0 0 1 19 5.25v9.5A2.25 2.25 0 0 1 16.75 17H3.25A2.25 2.25 0 0 1 1 14.75v-9.5Zm1.5 5.81v3.69c0 .414.336.75.75.75h13.5a.75.75 0 0 0 .75-.75v-2.69l-2.22-2.219a.75.75 0 0 0-1.06 0l-1.91 1.909-4.72-4.719a.75.75 0 0 0-1.06 0L2.5 11.06Zm6-3.06a1.25 1.25 0 1 1 2.5 0 1.25 1.25 0 0 1-2.5 0Z" clipRule="evenodd" />
+              </svg>
+              Has image analysis
+            </span>
+          </label>
           {result ? (
             <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
               Found <span className="text-slate-700 dark:text-slate-300">{result.total_found}</span> campaigns
@@ -201,18 +216,30 @@ export function PromptSqlExplorer() {
         </div>
       </div>
 
-      {result && result.campaigns.length > 0 ? (
+      {result && result.campaigns.length > 0 ? (() => {
+        const displayedCampaigns = filterImageAnalysis
+          ? result.campaigns.filter((c) => c.has_image_analysis)
+          : result.campaigns;
+
+        return (
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800 transition-colors">
           <div className="mb-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              Search Results for: "{result.query}"
+              Search Results for: &quot;{result.query}&quot;
             </p>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Found {result.total_found} campaign{result.total_found !== 1 ? 's' : ''} matching your query
+              {filterImageAnalysis
+                ? `Showing ${displayedCampaigns.length} of ${result.total_found} campaigns (with image analysis)`
+                : `Found ${result.total_found} campaign${result.total_found !== 1 ? 's' : ''} matching your query`}
             </p>
           </div>
+          {displayedCampaigns.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400 py-4">
+              No campaigns with image analysis found. Try disabling the filter.
+            </p>
+          ) : (
           <div className="space-y-3 max-h-[600px] overflow-y-auto">
-            {result.campaigns.map((campaign, idx) => {
+            {displayedCampaigns.map((campaign, idx) => {
               const data = formatCampaignData(campaign);
               const isExpanded = expandedCampaigns.has(campaign.campaign_id);
               const hasFullData = campaign.document || (campaign.analysis && typeof campaign.analysis === 'object');
@@ -224,9 +251,24 @@ export function PromptSqlExplorer() {
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
-                      <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                        {data.campaign_name}
-                      </h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          {data.campaign_name}
+                        </h3>
+                        {campaign.has_image_analysis && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                            title={`${campaign.image_analysis_count || 1} image${(campaign.image_analysis_count || 1) > 1 ? 's' : ''} analyzed`}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                              <path fillRule="evenodd" d="M1 5.25A2.25 2.25 0 0 1 3.25 3h13.5A2.25 2.25 0 0 1 19 5.25v9.5A2.25 2.25 0 0 1 16.75 17H3.25A2.25 2.25 0 0 1 1 14.75v-9.5Zm1.5 5.81v3.69c0 .414.336.75.75.75h13.5a.75.75 0 0 0 .75-.75v-2.69l-2.22-2.219a.75.75 0 0 0-1.06 0l-1.91 1.909-4.72-4.719a.75.75 0 0 0-1.06 0L2.5 11.06Zm6-3.06a1.25 1.25 0 1 1 2.5 0 1.25 1.25 0 0 1-2.5 0Z" clipRule="evenodd" />
+                            </svg>
+                            {campaign.image_analysis_count && campaign.image_analysis_count > 1
+                              ? `${campaign.image_analysis_count} images`
+                              : "Image"}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-1">
                         ID: {data.campaign_id}
                       </p>
@@ -310,7 +352,7 @@ export function PromptSqlExplorer() {
                       {campaign.metadata && Object.keys(campaign.metadata).length > 0 && (
                         <div className="mb-3">
                           <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Metadata:</h5>
-                          <pre className="text-xs bg-slate-100 dark:bg-slate-800 p-2 rounded overflow-x-auto max-h-40 overflow-y-auto">
+                          <pre className="text-xs bg-slate-100 dark:bg-slate-800 p-2 rounded max-w-full max-h-40 overflow-y-auto whitespace-pre-wrap break-words">
                             {JSON.stringify(campaign.metadata, null, 2)}
                           </pre>
                         </div>
@@ -320,7 +362,7 @@ export function PromptSqlExplorer() {
                       {campaign.analysis && (
                         <div className="mb-3">
                           <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Analysis:</h5>
-                          <pre className="text-xs bg-slate-100 dark:bg-slate-800 p-2 rounded overflow-x-auto max-h-60 overflow-y-auto">
+                          <pre className="text-xs bg-slate-100 dark:bg-slate-800 p-2 rounded max-w-full max-h-60 overflow-y-auto whitespace-pre-wrap break-words">
                             {typeof campaign.analysis === 'string' 
                               ? campaign.analysis 
                               : JSON.stringify(campaign.analysis, null, 2)}
@@ -332,7 +374,7 @@ export function PromptSqlExplorer() {
                       {campaign.document && (
                         <div className="mb-3">
                           <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Raw Document:</h5>
-                          <pre className="text-xs bg-slate-100 dark:bg-slate-800 p-2 rounded overflow-x-auto max-h-60 overflow-y-auto">
+                          <pre className="text-xs bg-slate-100 dark:bg-slate-800 p-2 rounded max-w-full max-h-60 overflow-y-auto whitespace-pre-wrap break-words">
                             {typeof campaign.document === 'string' 
                               ? campaign.document 
                               : JSON.stringify(campaign.document, null, 2)}
@@ -345,8 +387,10 @@ export function PromptSqlExplorer() {
               );
             })}
           </div>
+          )}
         </div>
-      ) : result && result.campaigns.length === 0 ? (
+        );
+      })() : result && result.campaigns.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800 transition-colors">
           <p className="text-sm text-slate-600 dark:text-slate-300">
             No campaigns found matching your query. Try a different search term.

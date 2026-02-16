@@ -97,13 +97,23 @@ class RAGCampaignService:
         }
 
         for campaign_data in campaign_analyses:
+            if not isinstance(campaign_data, dict):
+                continue
             analysis = campaign_data.get("analysis", {})
+            if not isinstance(analysis, dict):
+                analysis = {}
             metadata = campaign_data.get("metadata", {})
+            if not isinstance(metadata, dict):
+                metadata = {}
 
             # Extract from images
             images = analysis.get("images", [])
             for img_data in images:
+                if not isinstance(img_data, dict):
+                    continue
                 img_analysis = img_data.get("analysis", {}) if "analysis" in img_data else img_data
+                if not isinstance(img_analysis, dict):
+                    img_analysis = {}
 
                 # Extract colors
                 if "dominant_colors" in img_analysis:
@@ -174,11 +184,19 @@ class RAGCampaignService:
         text_samples = []
 
         for campaign_data in campaign_analyses:
+            if not isinstance(campaign_data, dict):
+                continue
             analysis = campaign_data.get("analysis", {})
+            if not isinstance(analysis, dict):
+                analysis = {}
             images = analysis.get("images", [])
 
             for img_data in images:
+                if not isinstance(img_data, dict):
+                    continue
                 img_analysis = img_data.get("analysis", {}) if "analysis" in img_data else img_data
+                if not isinstance(img_analysis, dict):
+                    img_analysis = {}
 
                 # Extract text content
                 if "text_content" in img_analysis:
@@ -213,11 +231,19 @@ class RAGCampaignService:
         image_refs = []
 
         for campaign_data in campaign_analyses:
+            if not isinstance(campaign_data, dict):
+                continue
             analysis = campaign_data.get("analysis", {})
+            if not isinstance(analysis, dict):
+                analysis = {}
             images = analysis.get("images", [])
 
             for img_data in images:
+                if not isinstance(img_data, dict):
+                    continue
                 img_analysis = img_data.get("analysis", {}) if "analysis" in img_data else img_data
+                if not isinstance(img_analysis, dict):
+                    img_analysis = {}
 
                 image_ref = {
                     "campaign_id": campaign_data.get("campaign_id"),

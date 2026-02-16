@@ -7,10 +7,12 @@ from pydantic import BaseModel, Field
 
 class EmailCampaignGenerationRequest(BaseModel):
     """Request to generate a new email campaign."""
+    experiment_run_id: Optional[str] = Field(None, description="If set, fetch this experiment's details and associated product (text + image) and generate from that only; no campaign search.")
     campaign_name: Optional[str] = Field(None, description="Name for the campaign")
     objective: str = Field(..., description="Campaign objective (e.g., 'Increase sales', 'Promote new product', 'Re-engage customers')")
     audience_segment: Optional[str] = Field(None, description="Target audience segment")
     products: Optional[List[str]] = Field(None, description="Products to promote in the campaign")
+    product_context: Optional[str] = Field(None, description="Product names and descriptions to incorporate into hero image, CTA, and key message prompts (in addition to RAG)")
     product_images: Optional[List[str]] = Field(None, description="URLs or paths to product images")
     tone: Optional[str] = Field("professional", description="Email tone (e.g., 'professional', 'casual', 'urgent', 'friendly')")
     key_message: Optional[str] = Field(None, description="Key message or value proposition")
@@ -27,7 +29,7 @@ class EmailCampaignGenerationRequest(BaseModel):
 
 
 class EmailContent(BaseModel):
-    """Email content components."""
+    """Email content components (internal use; stored in DB)."""
     subject_line: str
     preview_text: Optional[str] = None
     greeting: str
@@ -40,26 +42,11 @@ class EmailContent(BaseModel):
     product_image_urls: Optional[List[str]] = Field(None, description="URLs or paths to product images")
 
 
-class PastCampaignReference(BaseModel):
-    """Reference to a past campaign used in generation."""
-    campaign_id: str
-    campaign_name: Optional[str] = None
-    similarity_score: float
-    insights_used: List[str] = Field(default_factory=list)
-
-
 class EmailCampaignResponse(BaseModel):
-    """Response with generated email campaign."""
+    """Response with generated email campaign: just the generated HTML email."""
     campaign_id: str
     campaign_name: str
-    objective: str
-    audience_segment: Optional[str] = None
-    email_content: EmailContent
-    subject_line_variations: List[str] = Field(default_factory=list)
-    design_recommendations: List[str] = Field(default_factory=list)
-    talking_points: List[str] = Field(default_factory=list)
-    expected_metrics: Optional[Dict[str, str]] = None
-    past_campaign_references: List[PastCampaignReference] = Field(default_factory=list, description="Past campaigns used as reference")
+    html_email: str = Field(..., description="Generated HTML email content")
     generated_at: datetime = Field(default_factory=datetime.utcnow)
 
 

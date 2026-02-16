@@ -24,7 +24,7 @@ def setup_logging():
         "ERROR": logging.ERROR,
         "CRITICAL": logging.CRITICAL,
     }
-    root_level = log_level_map.get(settings.log_level.upper(), logging.INFO)
+    root_level = log_level_map.get(settings.log_level.upper(), logging.DEBUG)
     
     # Create formatter
     formatter = logging.Formatter(

@@ -78,7 +78,10 @@ def init_chromadb(collection_name: str = "UCO_Gear_Campaigns", overwrite: bool =
     try:
         collection = client.create_collection(
             name=collection_name,
-            metadata={"description": "Campaign analysis embeddings"}
+            metadata={
+                "description": "Campaign analysis embeddings",
+                "hnsw:space": "cosine",
+            }
         )
         print(f"✓ Successfully created collection '{collection_name}'")
         print(f"✓ ChromaDB initialized at: {vector_db_path}")

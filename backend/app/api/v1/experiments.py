@@ -306,6 +306,19 @@ async def get_experiment_results(experiment_run_id: str) -> ExperimentResultsRes
             # Continue anyway - return empty list for correlations
         
         logger.debug(f"Found {len(correlations)} correlations")
+        
+        # Extract prompts from results_summary
+        hero_image_prompts = None
+        text_prompts = None
+        call_to_action_prompts = None
+        
+        if exp_data.get("results_summary"):
+            results_summary = exp_data["results_summary"]
+            if isinstance(results_summary, dict):
+                hero_image_prompts = results_summary.get("hero_image_prompts")
+                text_prompts = results_summary.get("text_prompts")
+                call_to_action_prompts = results_summary.get("call_to_action_prompts")
+        
         logger.info(f"Successfully retrieved experiment results: campaigns={len(campaign_analyses)}, images={len(image_analyses)}, correlations={len(correlations)}")
         
         return ExperimentResultsResponse(
@@ -313,6 +326,9 @@ async def get_experiment_results(experiment_run_id: str) -> ExperimentResultsRes
             campaign_analyses=campaign_analyses,
             image_analyses=image_analyses,
             correlations=correlations,
+            hero_image_prompts=hero_image_prompts,
+            text_prompts=text_prompts,
+            call_to_action_prompts=call_to_action_prompts,
         )
     except HTTPException:
         raise

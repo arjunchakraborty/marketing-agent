@@ -9,21 +9,54 @@ from typing import Any, Dict, List, Optional
 
 from ..core.config import settings
 from ..services.intelligence_service import IntelligenceService
-from ..services.vector_db_service import VectorDBService
+from ..services.vector_db_service import (
+    DEFAULT_PRODUCT_COLLECTION_NAME,
+    VectorDBService,
+    get_product_context_for_prompts,
+)
 
 logger = logging.getLogger(__name__)
+
+# Only use campaign search results with similarity at or above this (0-1). Filters out low-confidence matches.
+MIN_SIMILARITY_HIGH_CONFIDENCE = 0.6
+
+
+def _extract_product_names_from_campaigns(campaigns: List[Dict[str, Any]]) -> List[str]:
+    """Extract product names from campaign metadata or analysis for product-context lookup."""
+    names = []
+    for campaign in campaigns:
+        metadata = campaign.get("metadata") or {}
+        # Common metadata keys for products
+        for key in ("products_promoted", "products", "product_names"):
+            val = metadata.get(key)
+            if isinstance(val, list):
+                for p in val:
+                    if isinstance(p, str) and p.strip() and p.strip() not in {n.strip() for n in names}:
+                        names.append(p.strip())
+            elif isinstance(val, str) and val.strip():
+                names.append(val.strip())
+        analysis = campaign.get("analysis")
+        if isinstance(analysis, dict) and analysis.get("products_promoted"):
+            for p in analysis["products_promoted"]:
+                if isinstance(p, str) and p.strip() and p.strip() not in {n.strip() for n in names}:
+                    names.append(p.strip())
+    return names[:30]
 
 
 def extract_key_features_from_campaigns(
     campaigns: List[Dict[str, Any]],
     intelligence_service: IntelligenceService,
+    product_collection_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Extract key features and patterns from a list of campaigns using LLM.
+    Incorporates product descriptions so hero_image_prompts, text_prompts, and
+    call_to_action_prompts include product details in addition to RAG patterns.
     
     Args:
         campaigns: List of campaign analysis dictionaries from vector DB
         intelligence_service: Intelligence service for LLM operations
+        product_collection_name: Optional product collection for description lookup (default UCO_Gear_Products)
         
     Returns:
         Dictionary with key features, patterns, and recommendations
@@ -33,6 +66,9 @@ def extract_key_features_from_campaigns(
             "key_features": [],
             "patterns": {},
             "recommendations": [],
+            "hero_image_prompts": [],
+            "text_prompts": [],
+            "call_to_action_prompts": [],
             "summary": "No campaigns found to analyze",
         }
     
@@ -43,26 +79,43 @@ def extract_key_features_from_campaigns(
         campaign_id = campaign.get("campaign_id", "unknown")
         metadata = campaign.get("metadata", {})
         
-        summary_parts = [analysis]
+        summary_parts = [str(analysis) if not isinstance(analysis, dict) else json.dumps(analysis)]
         summary_parts.append(f"Metadata: {json.dumps(metadata)}")
+        campaign_summaries.append(f"[Campaign {campaign_id}]\n" + "\n".join(summary_parts))
+    
+    # Product context: names + descriptions for prompt generation
+    product_names = _extract_product_names_from_campaigns(campaigns)
+    collection = product_collection_name or DEFAULT_PRODUCT_COLLECTION_NAME
+    product_context = get_product_context_for_prompts(
+        product_names=product_names if product_names else None,
+        collection_name=collection,
+        max_products=25,
+    )
+    product_context_block = ""
+    if product_context:
+        product_context_block = f"""
+Product context (incorporate these product details into hero image, text, and call-to-action prompts below):
+{product_context}
+
+"""
     
     # Create prompt for feature extraction
     prompt = f"""Analyze the following {len(campaigns)} marketing campaigns and identify:
 
 1. Key Features: What are the most important features that make these campaigns effective?
 2. Common Patterns: What patterns do you see across these campaigns (visual elements, messaging, design)?
-3. Recommendations: Generate text that can be used to prompt for creating a new email campaign visual incorporating the text and visual elements of the campaigns passed in
-
+3. Recommendations: Generate hero image, text, and call-to-action prompts that incorporate both (a) these campaign patterns and (b) the product details below. Each generated prompt should reference specific product names and descriptions where relevant.
+{product_context_block}
 Campaign Summaries:
-{chr(10).join(summary_parts)}
+{chr(10).join(campaign_summaries)}
 
 Provide a structured analysis with:
 - Key Features (list 5-7 most important)
 - Common Patterns (describe visual, messaging, and design patterns)
-- You can assume that each email would have this following structure - logo, navigation, Hero Image, Text and Call to Action.
-- Generate recommendations for each content sectiion of this email(generate text that can be used as a system prompt for generating new campaign email incorporating the common patterns)
+- You can assume that each email would have this structure: logo, navigation, Hero Image, Text, and Call to Action.
+- Generate recommendations for each content section. For hero_image_prompts, text_prompts, and call_to_action_prompts: each prompt must incorporate product details (names/descriptions) from the Product context above in addition to the campaign patterns. The final prompts should be usable as system prompts for generating new campaign content.
 
-Return as JSON with keys: key_features (list), patterns (dict with keys: visual, messaging, design), and list of system prompts for generating each section hero_image, text, call_to_action separetly."""
+Return as JSON with keys: key_features (list), patterns (dict with keys: visual, messaging, design), hero_image_prompts (list of strings), text_prompts (list of strings), call_to_action_prompts (list of strings)."""
 
     try:
         if not intelligence_service.llm_service:
@@ -235,10 +288,11 @@ def run_vector_db_experiment(
             try:
                 vector_db_service = VectorDBService(collection_name=coll_name)
                 
-                # Search for similar campaigns using the prompt
+                # Search for similar campaigns using the prompt (at least 3 for useful analysis)
+                n_results = max(3, num_campaigns)
                 similar_campaigns = vector_db_service.search_similar_campaigns(
                     query_text=prompt_query,
-                    n_results=1,
+                    n_results=n_results,
                 )
                 
                 if similar_campaigns:
@@ -278,7 +332,35 @@ def run_vector_db_experiment(
         campaigns_found = list(unique_campaigns.values())
         campaign_ids = list(unique_campaigns.keys())
         
-        logger.info(f"Analyzing {len(campaigns_found)} unique campaigns")
+        # Keep only high-confidence results (similarity_score >= threshold)
+        campaigns_found = [
+            c for c in campaigns_found
+            if (c.get("similarity_score") or 0) >= MIN_SIMILARITY_HIGH_CONFIDENCE
+        ]
+        campaign_ids = [c.get("campaign_id") for c in campaigns_found if c.get("campaign_id")]
+        if not campaigns_found:
+            logger.warning(
+                f"No campaigns met high-confidence threshold (similarity >= {MIN_SIMILARITY_HIGH_CONFIDENCE}). "
+                "Try a more specific query or lower the threshold."
+            )
+            return {
+                "experiment_run_id": experiment_run_id,
+                "status": "completed",
+                "campaigns_analyzed": 0,
+                "campaign_ids": [],
+                "key_features": {
+                    "key_features": [],
+                    "patterns": {},
+                    "recommendations": [
+                        f"No campaigns matched with high confidence (score >= {MIN_SIMILARITY_HIGH_CONFIDENCE}). "
+                        "Try a more specific search prompt."
+                    ],
+                    "summary": "No high-confidence matches",
+                },
+                "error": "No campaigns met high-confidence similarity threshold",
+            }
+        
+        logger.info(f"Analyzing {len(campaigns_found)} unique high-confidence campaigns")
         
         # Extract key features from campaigns
         key_features = extract_key_features_from_campaigns(
@@ -299,6 +381,9 @@ def run_vector_db_experiment(
                 "key_features": key_features.get("key_features", []),
                 "patterns": key_features.get("patterns", {}),
                 "recommendations": key_features.get("recommendations", []),
+                "hero_image_prompts": key_features.get("hero_image_prompts", []),
+                "text_prompts": key_features.get("text_prompts", []),
+                "call_to_action_prompts": key_features.get("call_to_action_prompts", []),
                 "summary": key_features.get("summary", ""),
                 "prompt_query": prompt_query,
                 "collection_names_searched": collections_to_search,

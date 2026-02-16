@@ -46,6 +46,34 @@ def _find_image_files(extracted_dir: Path) -> List[Path]:
     return image_files
 
 
+def _normalize_product_keys(product: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Normalize product dict so description and url (and other common fields) are
+    present under canonical keys regardless of CSV/JSON column naming.
+    Returns a copy with canonical keys set from common variants.
+    """
+    out = dict(product)
+    # Description: map common column names to canonical "description"
+    if not out.get("description") and not out.get("product_description"):
+        for key in ("Description", "Product Description", "desc", "body", "content"):
+            if key in out and out[key] not in (None, ""):
+                out["description"] = out[key]
+                break
+    if out.get("product_description") and not out.get("description"):
+        out["description"] = out["product_description"]
+    # URL: map common column names to canonical "url"
+    if not out.get("url") and not out.get("product_url") and not out.get("hyperlink"):
+        for key in ("URL", "Product URL", "Link", "link", "page_url", "product_link"):
+            if key in out and out[key] not in (None, ""):
+                out["url"] = out[key]
+                break
+    if out.get("product_url") and not out.get("url"):
+        out["url"] = out["product_url"]
+    if out.get("hyperlink") and not out.get("url"):
+        out["url"] = out["hyperlink"]
+    return out
+
+
 def _load_product_data(file_path: Path) -> List[Dict[str, Any]]:
     """Load product data from CSV or JSON file."""
     if file_path.suffix.lower() == ".csv":
@@ -234,7 +262,7 @@ def load_product_zip_to_vector_db(
     Args:
         zip_file_path: Path to the zip file containing products and images
         business_name: Optional name of the business. If not provided, extracted from zip filename.
-        collection_name: Optional custom collection name (default: "products_{business_name}")
+        collection_name: Optional custom collection name (default: "UCO_Gear_Products")
         cleanup_extracted: Whether to cleanup extracted files after processing
         
     Returns:
@@ -317,7 +345,7 @@ def load_product_zip_to_vector_db(
         # Initialize services
         try:
             vector_db_service = VectorDBService(
-                collection_name=collection_name or f"products_{business_name.lower().replace(' ', '_')}"
+                collection_name=collection_name or "UCO_Gear_Products"
             )
             
             # Set up product images storage directory
@@ -352,6 +380,8 @@ def load_product_zip_to_vector_db(
         
         for product in all_products:
             try:
+                # Normalize keys so description, url etc. are stored regardless of column names
+                product = _normalize_product_keys(product)
                 # Get product identifier
                 product_id = None
                 for field in ["product_id", "id", "sku", "product_sku"]:
@@ -394,7 +424,12 @@ def load_product_zip_to_vector_db(
                         metadata={
                             "business_name": business_name,
                             "product_name": product.get("name") or product.get("product_name", ""),
+                            "brand": product.get("brand") or product.get("product_brand", ""),
                             "category": product.get("category") or product.get("product_category", ""),
+                            "description": str(product.get("description") or product.get("product_description", ""))[:512],
+                            "price": str(product.get("price") or product.get("product_price", "")),
+                            "sale_price": str(product.get("sale_price") or product.get("product_sale_price", "")),
+                            "hyperlink": str(product.get("hyperlink") or product.get("url") or product.get("product_url", "")),
                             "stored_images": len(stored_image_paths),
                         },
                     )

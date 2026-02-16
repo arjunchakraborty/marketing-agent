@@ -92,8 +92,8 @@ def main():
     parser = argparse.ArgumentParser(description="Clear vector database collections")
     parser.add_argument(
         "--collection",
-        help="Collection name to clear (default: klaviyo_campaigns)",
-        default="klaviyo_campaigns"
+        help="Collection name to clear (default: UCO_Gear_Campaigns)",
+        default="UCO_Gear_Campaigns",
     )
     parser.add_argument(
         "--all",

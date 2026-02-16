@@ -1,7 +1,7 @@
 """API v1 package exports."""
 from fastapi import APIRouter
 
-from . import health, ingestion, analytics, intelligence, products, image_analysis, experiments, campaigns
+from . import health, ingestion, analytics, intelligence, products, image_analysis, experiments, campaigns, images
 
 
 router = APIRouter()
@@ -13,5 +13,6 @@ router.include_router(products.router, prefix="/products", tags=["products"])
 router.include_router(image_analysis.router, prefix="/image-analysis", tags=["image-analysis"])
 router.include_router(experiments.router, prefix="/experiments", tags=["experiments"])
 router.include_router(campaigns.router, prefix="/campaigns", tags=["campaigns"])
+router.include_router(images.router, prefix="/images", tags=["images"])
 
 __all__ = ["router"]
