@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import pandas as pd
+
 
 from ..core.config import settings
 from ..services.vector_db_service import VectorDBService

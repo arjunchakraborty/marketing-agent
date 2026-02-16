@@ -7,7 +7,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
