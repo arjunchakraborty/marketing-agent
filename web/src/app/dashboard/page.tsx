@@ -46,7 +46,7 @@ export default function DashboardOverviewPage() {
                   Set subject, audience, and send or schedule. Optionally use insights from past campaigns.
                 </p>
                 <Button asChild variant="outline" className="mt-4">
-                  <Link href="/dashboard/recommendations">Create campaign</Link>
+                  <Link href="/dashboard/recommendations?mode=new">Create campaign</Link>
                 </Button>
               </CardContent>
             </Card>

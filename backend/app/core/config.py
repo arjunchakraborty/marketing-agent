@@ -6,9 +6,9 @@ from typing import List, Optional, Sequence
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Load .env from this package directory (backend/app/core/.env) so it's read regardless of CWD
-_THIS_DIR = Path(__file__).resolve().parent
-_ENV_FILE = _THIS_DIR / ".env"
+# Load .env from backend root (backend/.env) so one file is used for local and docs
+_BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
+_ENV_FILE = _BACKEND_ROOT / ".env"
 
 
 class Settings(BaseSettings):
@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///../storage/marketing_agent.db"
     analytics_schema: str = "analytics"
-    ingestion_data_root: str = "/Users/kerrief/projects/mappe/data"
+    ingestion_data_root: str = Field(default="", description="Root path for CSV/file ingestion. Set via INGESTION_DATA_ROOT (e.g. ./storage/ingestion). Empty for production unless using file-based ingestion.")
 
     allowed_origins: List[str] = Field(default_factory=lambda: ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"])
 
@@ -64,7 +64,7 @@ class Settings(BaseSettings):
 
     # Logging Configuration
     log_level: str = Field(default="INFO", description="Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL")
-    log_experiments_debug: bool = Field(default=True, description="Enable DEBUG level logging for experiments and workflows")
+    log_experiments_debug: bool = Field(default=False, description="Enable DEBUG level logging for experiments and workflows. Set to true for debugging.")
 
     @field_validator("allowed_origins", mode="before")
     @classmethod

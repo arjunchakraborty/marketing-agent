@@ -8,7 +8,7 @@ const newCampaignItems = [
   { label: "Overview", href: "/dashboard" },
   { label: "Connect store", href: "/dashboard/connect" },
   { label: "Campaigns", href: "/dashboard/campaigns" },
-  { label: "Create campaign", href: "/dashboard/recommendations" },
+  { label: "Create campaign", href: "/dashboard/recommendations?mode=new" },
 ];
 
 const leverageItems = [

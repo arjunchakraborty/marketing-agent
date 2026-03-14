@@ -52,6 +52,7 @@ export function RecommendationBoard() {
   const productSearchInputRef = useRef<HTMLInputElement>(null);
   const productsDropdownRef = useRef<HTMLDivElement>(null);
   const hasAppliedUrlExperimentRef = useRef(false);
+  const hasOpenedCreateModeRef = useRef(false);
 
   const [formData, setFormData] = useState<EmailCampaignGenerationRequest>({
     objective: "",
@@ -63,11 +64,51 @@ export function RecommendationBoard() {
     num_similar_campaigns: 5,
     subject_line_suggestions: 3,
     include_preview_text: true,
+    campaign_name: "",
   });
 
   useEffect(() => {
     loadExperiments();
   }, []);
+
+  // Refetch when user returns to this tab so new experiments (e.g. from Campaign Strategy) show up
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        loadExperiments();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
+
+  const openCreateCampaignDialog = () => {
+    setSelectedExperimentId(null);
+    setSelectedSummary(null);
+    setFormData({
+      objective: "",
+      products: [],
+      key_message: "",
+      design_guidance: "",
+      tone: "professional",
+      use_past_campaigns: true,
+      num_similar_campaigns: 5,
+      subject_line_suggestions: 3,
+      include_preview_text: true,
+      campaign_name: "",
+    });
+    setGenerationError(null);
+    setGenerationResult(null);
+    setGenerateDialogOpen(true);
+  };
+
+  // Open create form when landing with ?mode=new (e.g. from "Create campaign" in nav)
+  useEffect(() => {
+    if (!searchParams || searchParams.get("mode") !== "new") return;
+    if (hasOpenedCreateModeRef.current) return;
+    hasOpenedCreateModeRef.current = true;
+    openCreateCampaignDialog();
+  }, [searchParams]);
 
   // Preselect experiment from URL (e.g. from Campaign strategy "Generate email from this experiment")
   useEffect(() => {
@@ -328,8 +369,16 @@ export function RecommendationBoard() {
           <CardDescription>No experiments found</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-slate-500 dark:text-slate-400">
-            Run your first experiment to see results here.
+          <div className="text-center py-8 text-zinc-500 dark:text-zinc-400">
+            Run your first experiment on the Campaign strategy page to see results here, or create a campaign from scratch.
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button onClick={openCreateCampaignDialog}>
+              Create new campaign
+            </Button>
+            <Button onClick={loadExperiments} variant="outline" size="sm" disabled={loading}>
+              {loading ? "Loading…" : "Refresh list"}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -343,12 +392,17 @@ export function RecommendationBoard() {
           <div>
             <CardTitle>Experiment History</CardTitle>
             <CardDescription>
-              Campaign analysis experiments sorted by most recent
+              Campaign analysis experiments sorted by most recent. New runs appear after you refresh or return to this tab.
             </CardDescription>
           </div>
-          <Button onClick={loadExperiments} variant="outline" size="sm">
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={openCreateCampaignDialog}>
+              Create new campaign
+            </Button>
+            <Button onClick={loadExperiments} variant="outline" size="sm" disabled={loading}>
+              {loading ? "Loading…" : "Refresh"}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -360,7 +414,7 @@ export function RecommendationBoard() {
             return (
               <div
                 key={summary.experiment_run_id}
-                className="rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 transition-all hover:shadow-md"
+                className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800 transition-all hover:shadow-md"
               >
                 <div
                   className="p-4 cursor-pointer"
@@ -369,7 +423,7 @@ export function RecommendationBoard() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <h4 className="text-base font-semibold text-slate-800 dark:text-slate-100">
+                        <h4 className="text-base font-semibold text-zinc-800 dark:text-zinc-100">
                           {summary.name || `Experiment ${summary.experiment_run_id.substring(0, 8)}`}
                         </h4>
                         <Badge className={getStatusColor(summary.status)}>
@@ -377,16 +431,16 @@ export function RecommendationBoard() {
                         </Badge>
                       </div>
                       <div className="mb-2">
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">
                           <span className="font-semibold">ID:</span> {summary.experiment_run_id}
                         </p>
                       </div>
                       {summary.prompt_query && (
-                        <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">
+                        <p className="text-sm text-zinc-600 dark:text-zinc-300 mb-2">
                           <span className="font-semibold">Query:</span> {summary.prompt_query}
                         </p>
                       )}
-                      <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
                         <span>{formatDate(summary.created_at)}</span>
                         <span>•</span>
                         <span>{summary.campaigns_analyzed} campaigns analyzed</span>
@@ -416,7 +470,7 @@ export function RecommendationBoard() {
                         <div className="mt-3 space-y-2">
                           {summary.hero_image_prompts && summary.hero_image_prompts.length > 0 && (
                             <div className="text-xs">
-                              <span className="font-semibold text-slate-700 dark:text-slate-300">Hero Image Prompts:</span>
+                              <span className="font-semibold text-zinc-700 dark:text-zinc-300">Hero Image Prompts:</span>
                               <div className="mt-1 space-y-1">
                                 {summary.hero_image_prompts.slice(0, 2).map((prompt, idx) => (
                                   <div key={idx} className="text-slate-600 dark:text-slate-400 italic pl-2">
@@ -673,8 +727,8 @@ export function RecommendationBoard() {
           setGenerateDialogOpen(open);
           if (!open) setEmailPreviewOpen(false);
         }}
-        title="Generate Campaigns"
-        description="Configure campaign generation based on the selected recommendation"
+        title={selectedExperimentId ? "Generate from experiment" : "Create campaign"}
+        description={selectedExperimentId ? "Configure campaign generation based on the selected experiment" : "Enter campaign objective, select products, and optional details to generate a new email campaign."}
         contentClassName="max-w-5xl"
       >
         <DialogContent>
@@ -689,7 +743,17 @@ export function RecommendationBoard() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="campaign-objective">Campaign Objective *</Label>
+              <Label htmlFor="campaign-name">Campaign name (optional)</Label>
+              <Input
+                id="campaign-name"
+                value={formData.campaign_name || ""}
+                onChange={(e) => setFormData({ ...formData, campaign_name: e.target.value })}
+                placeholder="e.g., Summer Sale 2025"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="campaign-objective">Campaign objective *</Label>
               <Textarea
                 id="campaign-objective"
                 value={formData.objective || ""}
