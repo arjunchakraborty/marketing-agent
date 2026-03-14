@@ -205,11 +205,12 @@ class CampaignGenerationService:
         workflow_override = None
         if settings.comfyui_workflow_path:
             workflow_override = settings.comfyui_workflow_path
-            logger.info(f"Using workflow override from config: {workflow_override}")                
-        
-        # Generate hero image using image generation service
+            logger.info(f"Using workflow override from config: {workflow_override}")
+        if not self.image_service.comfyui_available:
+            logger.warning("ComfyUI is not available; hero image will use placeholder if present.")
+
+        # Generate hero image using ComfyUI (local or cloud)
         try:
-            
             hero_image_url = self.image_service.generate_hero_image(
                 prompt=hero_image_prompt,
                 style=tone,

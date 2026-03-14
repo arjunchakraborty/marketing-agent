@@ -42,13 +42,13 @@ export function Dialog({ open, onOpenChange, title, description, contentClassNam
     >
       <div
         ref={dialogRef}
-        className={`relative w-full rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800 p-6 ${contentClassName ?? "max-w-lg"}`}
+        className={`relative w-full rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900 p-6 ${contentClassName ?? "max-w-lg"}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{title}</h2>
           {description && (
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</p>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{description}</p>
           )}
         </div>
         <div className="max-h-[70vh] overflow-y-auto">{children}</div>
@@ -71,7 +71,7 @@ interface DialogFooterProps {
 
 export function DialogFooter({ children }: DialogFooterProps) {
   return (
-    <div className="mt-6 flex justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-700">
+    <div className="mt-6 flex justify-end gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-700">
       {children}
     </div>
   );

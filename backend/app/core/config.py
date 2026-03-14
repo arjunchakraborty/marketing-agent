@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     analytics_schema: str = "analytics"
     ingestion_data_root: str = "/Users/kerrief/projects/mappe/data"
 
-    allowed_origins: List[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    allowed_origins: List[str] = Field(default_factory=lambda: ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"])
 
     # Security Configuration
     api_keys: List[str] = Field(

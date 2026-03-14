@@ -7,11 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  uploadCampaignDataZip,
   uploadVectorDbZip,
   uploadProductsZip,
   type CampaignDataZipUploadResponse,
   type ProductZipUploadResponse,
+  type VectorDbZipUploadResponse,
 } from "@/lib/api";
 
 type UploadType = "campaign-data" | "products";
@@ -20,7 +20,7 @@ interface UploadResult {
   type: UploadType;
   success: boolean;
   message: string;
-  data?: CampaignDataZipUploadResponse | ProductZipUploadResponse;
+  data?: VectorDbZipUploadResponse | ProductZipUploadResponse;
   error?: string;
 }
 
@@ -95,7 +95,7 @@ export function DataUpload() {
     setUploadResult(null);
 
     try {
-      let result: CampaignDataZipUploadResponse | ShopifyIntegrationZipUploadResponse | VectorDbZipUploadResponse | ProductZipUploadResponse;
+      let result: VectorDbZipUploadResponse | ProductZipUploadResponse;
 
       switch (activeTab) {
         case "campaign-data":
@@ -176,33 +176,23 @@ export function DataUpload() {
                 <p>Updated: {uploadResult.data.csv_ingestion.updated}</p>
               </div>
             )}
-            {uploadResult.type === "campaign-data" && uploadResult.data.vector_db_loading && (
-              <div>
-                <p className="font-semibold">Image Analysis & Vector DB Loading:</p>
-                {uploadResult.data.vector_db_loading.status === "error" ? (
-                  <p className="text-red-600 dark:text-red-400">
-                    Error: {uploadResult.data.vector_db_loading.error}
-                  </p>
-                ) : (
-                  <>
-                    <p>Loaded: {uploadResult.data.vector_db_loading.loaded} campaigns</p>
-                    <p>With Images: {uploadResult.data.vector_db_loading.campaigns_with_images}</p>
-                    <p>Without Images: {uploadResult.data.vector_db_loading.campaigns_without_images}</p>
-                    <p>Collection: {uploadResult.data.vector_db_loading.collection_name}</p>
-                    {uploadResult.data.vector_db_loading.skipped > 0 && (
-                      <p>Skipped (already exists): {uploadResult.data.vector_db_loading.skipped}</p>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-            {uploadResult.type === "campaign-data" && !uploadResult.data.vector_db_loading && (
-              <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 italic">
-                  Note: No image-analysis-extract folder found. Only CSV data was ingested.
-                </p>
-              </div>
-            )}
+            {uploadResult.type === "campaign-data" && (() => {
+              const d = uploadResult.data as VectorDbZipUploadResponse;
+              const vec = d.details;
+              if (!vec) return null;
+              return (
+                <div>
+                  <p className="font-semibold">Image Analysis & Vector DB Loading:</p>
+                  <p>Loaded: {vec.loaded ?? 0} campaigns</p>
+                  <p>With Images: {vec.campaigns_with_images ?? 0}</p>
+                  <p>Without Images: {vec.campaigns_without_images ?? 0}</p>
+                  <p>Collection: {vec.collection_name ?? "—"}</p>
+                  {(vec.skipped ?? 0) > 0 && (
+                    <p>Skipped (already exists): {vec.skipped}</p>
+                  )}
+                </div>
+              );
+            })()}
             {uploadResult.type === "products" && uploadResult.data.details && (
               <div>
                 <p className="font-semibold">Product Ingestion:</p>
@@ -379,11 +369,14 @@ export function DataUpload() {
               <p className="text-sm text-slate-600 dark:text-slate-400">
                 Drag and drop a zip file here, or
               </p>
-              <label htmlFor="file-upload">
-                <Button variant="outline" size="sm" asChild>
-                  <span>Browse Files</span>
-                </Button>
-              </label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Browse Files
+              </Button>
             </div>
           )}
         </div>

@@ -24,7 +24,7 @@ class EmailCampaignGenerationRequest(BaseModel):
     design_guidance: Optional[str] = Field(None, description="Design preferences or constraints")
     use_past_campaigns: bool = Field(True, description="Use RAG to retrieve insights from past successful campaigns")
     num_similar_campaigns: int = Field(5, description="Number of similar past campaigns to retrieve for reference")
-    generate_hero_image: bool = Field(False, description="Generate a new hero image using AI")
+    generate_hero_image: bool = Field(True, description="Generate a new hero image using AI (ComfyUI)")
     hero_image_prompt: Optional[str] = Field(None, description="Custom prompt for hero image generation")
 
 

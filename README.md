@@ -244,6 +244,8 @@ npm run dev
 
 Navigate to `http://localhost:3000` to explore the TripleWhale-inspired control center.
 
+**Environment:** The frontend calls the backend using `NEXT_PUBLIC_API_BASE`. When running locally, it defaults to `http://localhost:8000/api`. If the backend runs elsewhere, set `NEXT_PUBLIC_API_BASE` in `web/.env.local` (e.g. `NEXT_PUBLIC_API_BASE=http://localhost:8000/api`). If the backend is unreachable, the dashboard shows a slim banner with this hint.
+
 ### Uploading Campaign Data
 
 Campaign datasets can be uploaded directly through the web UI:

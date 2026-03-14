@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { listExperiments, generateEmailCampaign, getProductsFromVector, prepareCampaignHtmlForPreview, type ExperimentResultsResponse, type EmailCampaignGenerationRequest, type EmailCampaignResponse } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +33,7 @@ interface ExperimentSummary {
 }
 
 export function RecommendationBoard() {
+  const searchParams = useSearchParams();
   const [experiments, setExperiments] = useState<ExperimentResultsResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +51,7 @@ export function RecommendationBoard() {
   const [productSearchQuery, setProductSearchQuery] = useState("");
   const productSearchInputRef = useRef<HTMLInputElement>(null);
   const productsDropdownRef = useRef<HTMLDivElement>(null);
+  const hasAppliedUrlExperimentRef = useRef(false);
 
   const [formData, setFormData] = useState<EmailCampaignGenerationRequest>({
     objective: "",
@@ -65,6 +68,32 @@ export function RecommendationBoard() {
   useEffect(() => {
     loadExperiments();
   }, []);
+
+  // Preselect experiment from URL (e.g. from Campaign strategy "Generate email from this experiment")
+  useEffect(() => {
+    if (!searchParams) return;
+    const experimentRunId = searchParams.get("experiment_run_id");
+    if (!experimentRunId) return;
+    setSelectedExperimentId(experimentRunId);
+    const exp = experiments.find((e) => e.experiment_run?.experiment_run_id === experimentRunId);
+    if (exp) {
+      const summary = extractExperimentSummary(exp);
+      setSelectedSummary(summary);
+      const designParts: string[] = [];
+      if (summary.patterns?.visual) designParts.push(`Visual: ${summary.patterns.visual}`);
+      if (summary.patterns?.design) designParts.push(`Design: ${summary.patterns.design}`);
+      setFormData((prev) => ({
+        ...prev,
+        objective: prev.objective || "",
+        key_message: (summary.text_prompts || []).join("\n") || prev.key_message,
+        design_guidance: designParts.length ? designParts.join("\n") : prev.design_guidance,
+      }));
+    }
+    if (!hasAppliedUrlExperimentRef.current) {
+      hasAppliedUrlExperimentRef.current = true;
+      setGenerateDialogOpen(true);
+    }
+  }, [searchParams, experiments]);
 
   useEffect(() => {
     if (!productsDropdownOpen) {

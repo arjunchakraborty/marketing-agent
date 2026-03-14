@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -115,8 +116,17 @@ export function CampaignStrategyExperiment() {
       {currentExperiment && (
         <Card>
           <CardHeader>
-            <CardTitle>Experiment Results</CardTitle>
-            <CardDescription>Experiment ID: {currentExperiment.experiment_run_id}</CardDescription>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Experiment Results</CardTitle>
+                <CardDescription>Experiment ID: {currentExperiment.experiment_run_id}</CardDescription>
+              </div>
+              <Button asChild className="shrink-0">
+                <Link href={`/dashboard/recommendations?experiment_run_id=${encodeURIComponent(currentExperiment.experiment_run_id)}`}>
+                  Generate email from this experiment
+                </Link>
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
 

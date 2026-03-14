@@ -22,38 +22,36 @@ class ImageGenerationService:
     """Service for generating images using ComfyUI workflows."""
 
     def __init__(self) -> None:
-        """Initialize the image generation service."""
+        """Initialize the image generation service. Tries ComfyUI Cloud first, then local ComfyUI."""
         self.use_cloud = bool(settings.comfyui_cloud_base_url and settings.comfyui_cloud_api_key)
         self.comfyui_available = False
         self.client_id = str(uuid.uuid4())
         self.available_models = []
-        
+        self.comfyui_base_url = settings.comfyui_base_url
+
         if self.use_cloud:
             try:
                 self.cloud_service = ComfyUICloudService()
                 self.comfyui_available = True
                 logger.info(f"ComfyUI Cloud service initialized with base URL: {self.cloud_service.base_url}")
             except ValueError as e:
-                logger.error(f"Invalid ComfyUI Cloud configuration: {str(e)}")
+                logger.warning(f"ComfyUI Cloud config invalid: {e}. Falling back to local ComfyUI.")
                 self.use_cloud = False
                 self.cloud_service = None
             except Exception as e:
-                logger.error(f"Failed to initialize ComfyUI Cloud service: {str(e)}", exc_info=True)
+                logger.warning(f"ComfyUI Cloud init failed: {e}. Falling back to local ComfyUI.", exc_info=True)
                 self.use_cloud = False
                 self.cloud_service = None
         else:
             self.cloud_service = None
-        
-        if not self.use_cloud:
-            self.comfyui_base_url = settings.comfyui_base_url
-            # Check ComfyUI availability
+
+        # If cloud not in use or cloud init failed, try local ComfyUI
+        if not self.comfyui_available:
             try:
                 response = httpx.get(f"{self.comfyui_base_url}/system_stats", timeout=5.0)
                 response.raise_for_status()
                 self.comfyui_available = True
-                logger.info(f"ComfyUI available at {self.comfyui_base_url}")
-                
-                # Try to get available models
+                logger.info(f"ComfyUI (local) available at {self.comfyui_base_url}")
                 try:
                     models_response = httpx.get(f"{self.comfyui_base_url}/object_info", timeout=5.0)
                     models_response.raise_for_status()
@@ -69,7 +67,7 @@ class ImageGenerationService:
                 except Exception as e:
                     logger.warning(f"Could not fetch available models: {str(e)}")
             except Exception as e:
-                logger.warning(f"ComfyUI not available at {self.comfyui_base_url}: {str(e)}")
+                logger.warning(f"ComfyUI (local) not available at {self.comfyui_base_url}: {e}")
 
     def generate_hero_image(
         self,
@@ -95,8 +93,11 @@ class ImageGenerationService:
             Path to the generated image, or None if generation failed
         """
         if not self.comfyui_available:
-            logger.error("ComfyUI is not available. Please ensure ComfyUI is running.")
+            logger.error("ComfyUI is not available. Please ensure ComfyUI is running at %s or configure ComfyUI Cloud.", settings.comfyui_base_url)
             return None
+
+        source = "ComfyUI Cloud" if self.use_cloud else f"local ComfyUI ({self.comfyui_base_url})"
+        logger.info("Calling %s for hero image generation: prompt=%s...", source, (prompt[:80] + "..." if len(prompt) > 80 else prompt))
 
         enhanced_prompt = prompt
         if style:
@@ -118,10 +119,19 @@ class ImageGenerationService:
                 if isinstance(workflow_override, str):
                     workflow = self.load_workflow_from_file(workflow_override)
                     if not workflow:
-                        raise ValueError(f"Failed to load workflow from {workflow_override}")
+                        logger.warning("Workflow file %s not found or invalid; using built-in default workflow.", workflow_override)
+                        workflow = self._create_default_workflow(
+                            prompt=enhanced_prompt,
+                            negative_prompt=negative_prompt,
+                            width=width,
+                            height=height,
+                        )
+                    else:
+                        # Fix ComfyUI API format: ckpt_name must be string, not list
+                        workflow = self._normalize_workflow_for_api(workflow)
                 else:
                     # It's already a workflow dictionary
-                    workflow = workflow_override
+                    workflow = self._normalize_workflow_for_api(workflow_override)
                 
                 # Apply prompt overrides to the loaded workflow
                 # Override node 6's text prompt with the enhanced prompt (if node 6 exists)
@@ -289,6 +299,26 @@ class ImageGenerationService:
 
         return workflow
 
+    def _normalize_workflow_for_api(self, workflow: Dict) -> Dict:
+        """
+        Normalize workflow so ComfyUI API accepts it. E.g. ckpt_name must be a string,
+        not a list (saved workflows sometimes have dropdown values as [value]).
+        """
+        workflow = json.loads(json.dumps(workflow))  # Deep copy
+        for node_id, node in workflow.items():
+            if not isinstance(node, dict) or "inputs" not in node:
+                continue
+            if node.get("class_type") == "CheckpointLoaderSimple":
+                inputs = node["inputs"]
+                if "ckpt_name" in inputs:
+                    val = inputs["ckpt_name"]
+                    if isinstance(val, list):
+                        # ComfyUI API expects string, not [string] or [value, tooltip]
+                        first = val[0] if val else None
+                        inputs["ckpt_name"] = first if isinstance(first, str) else settings.comfyui_model
+                        logger.info("Normalized CheckpointLoaderSimple.ckpt_name to string for ComfyUI API")
+        return workflow
+
     def _execute_workflow(
         self,
         workflow: Dict,
@@ -304,6 +334,7 @@ class ImageGenerationService:
         Returns:
             Path to the generated image
         """
+        workflow = self._normalize_workflow_for_api(workflow)
         if self.use_cloud and self.cloud_service:
             return self._execute_workflow_cloud(workflow, output_path)
         else:

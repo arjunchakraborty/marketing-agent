@@ -491,3 +491,30 @@ export async function generateEmailCampaign(
   });
   return handleResponse<EmailCampaignResponse>(response);
 }
+
+export interface EmailCampaignListItem {
+  campaign_id: string;
+  campaign_name: string;
+  html_email: string;
+  generated_at: string;
+}
+
+export interface EmailCampaignsListResponse {
+  campaigns: EmailCampaignListItem[];
+  total: number;
+}
+
+export async function listCampaigns(
+  limit: number = 20,
+  offset: number = 0
+): Promise<EmailCampaignsListResponse> {
+  const response = await fetch(
+    `${API_BASE}/v1/campaigns/?limit=${limit}&offset=${offset}`
+  );
+  return handleResponse<EmailCampaignsListResponse>(response);
+}
+
+export async function getCampaign(campaignId: string): Promise<EmailCampaignResponse> {
+  const response = await fetch(`${API_BASE}/v1/campaigns/${encodeURIComponent(campaignId)}`);
+  return handleResponse<EmailCampaignResponse>(response);
+}
