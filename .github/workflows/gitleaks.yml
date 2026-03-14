@@ -1,0 +1,23 @@
+name: gitleaks
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * *" # Optional: Daily scan at 4 AM
+
+jobs:
+  scan:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Clones the entire history for a full scan
+          
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Required only for Organization accounts
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }} 

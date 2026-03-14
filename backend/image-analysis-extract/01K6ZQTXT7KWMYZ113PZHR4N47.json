@@ -1,0 +1,34 @@
+{
+  "campaign_id": "01K6ZQTXT7KWMYZ113PZHR4N47",
+  "image_name": "www.klaviyo.com_campaign_01K6ZQTXT7KWMYZ113PZHR4N47_web-view(iPhone 14 Pro Max).png",
+  "image_path": "/Users/a0c1fjt/Downloads/klyaviyo/www.klaviyo.com_campaign_01K6ZQTXT7KWMYZ113PZHR4N47_web-view(iPhone 14 Pro Max).png",
+  "analysis": {
+    "hero_image": {
+      "description": "Primary action shot of a person chopping vegetables outdoors",
+      "elements": [
+        "Hands of person (wearing patterned shirt + jeans)",
+        "Green cutting board",
+        "Red onion slices",
+        "Tomato (whole)",
+        "Lettuce (bunch)",
+        "Outdoor setting (grass, chair, natural light)"
+      ],
+      "color_scheme": "Natural outdoor palette (earthy tones + vibrant produce colors)",
+      "composition": "Medium shot, shallow depth of field"
+    },
+    "call_to_action_button": {
+      "text": "GRAB YOUR NEW CHEF KNIFE",
+      "color": "Orange background with white text",
+      "position": "Centered below bullet point section",
+      "design": "Rounded corners, bold typography, high contrast for readability"
+    }
+  },
+  "metadata": {
+    "provider": "ollama",
+    "model": "qwen3-vl",
+    "usage": {
+      "eval_tokens": 6502,
+      "prompt_tokens": 2752
+    }
+  }
+}
