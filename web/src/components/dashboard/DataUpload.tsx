@@ -167,18 +167,27 @@ export function DataUpload() {
         </p>
         {uploadResult.data && (
           <div className="mt-3 space-y-2 text-xs text-green-700 dark:text-green-300">
-            {uploadResult.type === "campaign-data" && uploadResult.data && "csv_ingestion" in uploadResult.data && uploadResult.data.csv_ingestion && (
-              <div>
-                <p className="font-semibold">CSV Ingestion:</p>
-                <p>Table: {uploadResult.data.csv_ingestion.table_name}</p>
-                <p>Total Rows: {uploadResult.data.csv_ingestion.total_rows}</p>
-                <p>Inserted: {uploadResult.data.csv_ingestion.inserted}</p>
-                <p>Updated: {uploadResult.data.csv_ingestion.updated}</p>
-              </div>
-            )}
+            {uploadResult.type === "campaign-data" && uploadResult.data && "csv_ingestion" in uploadResult.data && (() => {
+              const csv = (uploadResult.data as CampaignDataZipUploadResponse).csv_ingestion;
+              if (!csv) return null;
+              return (
+                <div>
+                  <p className="font-semibold">CSV Ingestion:</p>
+                  <p>Table: {csv.table_name}</p>
+                  <p>Total Rows: {csv.total_rows}</p>
+                  <p>Inserted: {csv.inserted}</p>
+                  <p>Updated: {csv.updated}</p>
+                </div>
+              );
+            })()}
             {uploadResult.type === "campaign-data" && uploadResult.data && (() => {
               const d = uploadResult.data;
-              const vec = "details" in d ? d.details : "vector_db_loading" in d ? d.vector_db_loading : null;
+              const vec =
+                "vector_db_loading" in d && d.vector_db_loading
+                  ? d.vector_db_loading
+                  : "details" in d && d.details && "loaded" in (d.details as Record<string, unknown>)
+                    ? (d.details as { loaded?: number; campaigns_with_images?: number; campaigns_without_images?: number; collection_name?: string; skipped?: number })
+                    : null;
               if (!vec) return null;
               return (
                 <div>
@@ -193,23 +202,26 @@ export function DataUpload() {
                 </div>
               );
             })()}
-            {uploadResult.type === "products" && uploadResult.data.details && (
-              <div>
-                <p className="font-semibold">Product Ingestion:</p>
-                <p>Products Processed: {uploadResult.data.details.products_processed}</p>
-                <p>Images Stored: {uploadResult.data.details.images_stored}</p>
-                <p>Collection: {uploadResult.data.details.collection_name}</p>
-                {uploadResult.data.details.product_ids.length > 0 && (
-                  <div className="mt-2">
-                    <p className="font-semibold">Product IDs:</p>
-                    <p className="text-xs break-words">
-                      {uploadResult.data.details.product_ids.slice(0, 10).join(", ")}
-                      {uploadResult.data.details.product_ids.length > 10 && "..."}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
+            {uploadResult.type === "products" && uploadResult.data && "details" in uploadResult.data && uploadResult.data.details && (() => {
+              const details = (uploadResult.data as ProductZipUploadResponse).details;
+              return (
+                <div>
+                  <p className="font-semibold">Product Ingestion:</p>
+                  <p>Products Processed: {details.products_processed}</p>
+                  <p>Images Stored: {details.images_stored}</p>
+                  <p>Collection: {details.collection_name}</p>
+                  {details.product_ids.length > 0 && (
+                    <div className="mt-2">
+                      <p className="font-semibold">Product IDs:</p>
+                      <p className="text-xs break-words">
+                        {details.product_ids.slice(0, 10).join(", ")}
+                        {details.product_ids.length > 10 && "..."}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
