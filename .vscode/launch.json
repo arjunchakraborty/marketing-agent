@@ -1,0 +1,128 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File with Arguments",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+        },
+        {
+            "name": "Python Debugger: Current File with Arguments",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": "${command:pickArgs}"
+        },
+        {
+            "name": "Python: FastAPI Debug",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "app.main:app",
+                "--reload",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8000"
+            ],
+            "python": "${workspaceFolder}/backend/.venv/bin/python",
+            "jinja": true,
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}/backend",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/backend"
+            },
+            "console": "integratedTerminal",
+            "autoReload": {
+                "enable": true
+            }
+        },
+        {
+            "name": "Python: FastAPI Debug (No Reload)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "app.main:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8000"
+            ],
+            "python": "${workspaceFolder}/backend/.venv/bin/python",
+            "jinja": true,
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}/backend",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/backend"
+            },
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: FastAPI Debug (Custom Port)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "app.main:app",
+                "--reload",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8001"
+            ],
+            "python": "${workspaceFolder}/backend/.venv/bin/python",
+            "jinja": true,
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}/backend",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/backend"
+            },
+            "console": "integratedTerminal",
+            "autoReload": {
+                "enable": true
+            }
+        },
+        {
+            "name": "Python: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "python": "${workspaceFolder}/backend/.venv/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}/backend",
+            "env": {
+                "PYTHONPATH": "${workspaceFolpyder}/backend"
+            },
+            "args": [
+              
+            ],
+        },
+        {
+            "name": "Python: Load Debug",
+            "type": "debugpy",
+            "request": "launch",
+            "args": [
+                "scripts/load_klaviyo_to_vector_db.py",
+                "--image-folder /Users/a0c1fjt/work/data2/UCO_Gear_campaigns/image-analysis-extract",
+                "-csv /Users/a0c1fjt/work/data2/UCO_Gear_campaign.csv"
+            ],
+            "python": "${workspaceFolder}/backend/.venv/bin/python",
+            "jinja": true,
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}/backend",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/backend"
+            },
+            "console": "integratedTerminal",
+            "autoReload": {
+                "enable": true
+            }
+        }
+    ]
+}
