@@ -6,7 +6,7 @@ import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { PageHelp } from "@/components/common/PageHelp";
 import Link from "next/link";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:2121/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api";
 
 export default function CampaignDemoPage() {
   const [segments, setSegments] = useState<any[]>([]);

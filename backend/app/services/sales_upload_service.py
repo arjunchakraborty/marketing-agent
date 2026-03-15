@@ -6,8 +6,6 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import pandas as pd
-
 from ..core.config import settings
 from ..workflows.local_csv_ingestion import ingest_directory
 
@@ -18,6 +16,16 @@ class SalesUploadService:
     def __init__(self):
         self.temp_dir = Path(tempfile.gettempdir()) / "marketing_agent_uploads"
         self.temp_dir.mkdir(exist_ok=True)
+
+    def _require_pandas(self):
+        """Import pandas only when tabular upload paths are exercised."""
+        try:
+            import pandas as pd
+        except ImportError as exc:
+            raise RuntimeError(
+                "pandas is required for CSV, Excel, and JSON sales uploads."
+            ) from exc
+        return pd
 
     def detect_file_type(self, filename: str, content_type: Optional[str] = None) -> str:
         """Detect file type from filename and content type."""
@@ -47,6 +55,7 @@ class SalesUploadService:
     def process_csv(self, file_path: Path, business: Optional[str] = None) -> Dict[str, Any]:
         """Process CSV file and ingest into database."""
         try:
+            pd = self._require_pandas()
             df = pd.read_csv(file_path)
             row_count = len(df)
             
@@ -89,6 +98,7 @@ class SalesUploadService:
     def process_excel(self, file_path: Path, business: Optional[str] = None) -> Dict[str, Any]:
         """Process Excel file and ingest into database."""
         try:
+            pd = self._require_pandas()
             # Read all sheets
             excel_file = pd.ExcelFile(file_path)
             total_rows = 0
@@ -132,6 +142,7 @@ class SalesUploadService:
     def process_json(self, file_path: Path, business: Optional[str] = None) -> Dict[str, Any]:
         """Process JSON file and ingest into database."""
         try:
+            pd = self._require_pandas()
             with open(file_path, "r") as f:
                 data = json.load(f)
 

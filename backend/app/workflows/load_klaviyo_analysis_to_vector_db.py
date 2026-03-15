@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Optional
 
 from numpy import true_divide
 
-from ..services.vector_db_service import VectorDBService
+from ..services.vector_db_service import get_vector_db_service
 
 logger = logging.getLogger(__name__)
 
@@ -361,7 +361,7 @@ def load_klaviyo_analysis_to_vector_db(
     
     # Initialize vector database service
     try:
-        vector_db = VectorDBService(collection_name=collection_name)
+        vector_db = get_vector_db_service(collection_name=collection_name)
     except RuntimeError as e:
         logger.error(f"Failed to initialize vector database: {str(e)}")
         raise
@@ -485,7 +485,7 @@ def search_campaigns_by_similarity(
     Returns:
         Dictionary with search results
     """
-    vector_db = VectorDBService(collection_name=collection_name)
+    vector_db = get_vector_db_service(collection_name=collection_name)
     
     results = vector_db.search_similar_campaigns(
         query_text=query_text,

@@ -35,7 +35,7 @@ export function PromptSqlExplorer() {
           errorMessage = err.message;
           // Provide more helpful error messages
           if (errorMessage.includes("Failed to fetch") || errorMessage.includes("NetworkError")) {
-            errorMessage = "Unable to connect to the API. Please check if the backend server is running on port 2121.";
+            errorMessage = "Unable to connect to the API. Please check if the backend server is running on port 8000.";
           } else if (errorMessage.includes("API key not configured") || errorMessage.includes("OpenAI API key")) {
             errorMessage = "LLM features require API configuration. The system will use heuristic mode instead. To enable LLM features, add your API key to backend/.env (see README for details).";
           } else if (errorMessage.includes("500") || errorMessage.includes("Internal Server")) {

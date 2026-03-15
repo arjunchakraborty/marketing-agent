@@ -4,7 +4,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from ..core.config import settings
-from .vector_db_service import VectorDBService
+from .vector_db_service import get_vector_db_service
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class RAGCampaignService:
         if settings.enable_vector_search:
             try:
                 # Use UCO_Gear_Campaigns as default
-                self.vector_db_service = VectorDBService(collection_name="UCO_Gear_Campaigns")
+                self.vector_db_service = get_vector_db_service(collection_name="UCO_Gear_Campaigns")
                 logger.info("RAG Campaign Service initialized with vector DB")
             except Exception as e:
                 logger.warning(f"Vector DB not available for RAG: {str(e)}")

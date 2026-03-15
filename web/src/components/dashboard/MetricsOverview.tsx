@@ -71,8 +71,8 @@ export function MetricsOverview({ className, business }: MetricsOverviewProps) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load metrics';
         console.error('Error details:', {
           message: errorMessage,
-          apiBase: process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:2121/api',
-          url: `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:2121/api'}/v1/analytics/kpi`
+          apiBase: process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api',
+          url: `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api'}/v1/analytics/kpi`
         });
         setError(errorMessage);
       } finally {

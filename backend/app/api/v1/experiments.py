@@ -71,16 +71,117 @@ async def run_experiment(payload: ExperimentRunRequest) -> ExperimentRunResponse
         raise HTTPException(status_code=500, detail=f"Experiment failed: {str(e)}")
 
 
+def _normalize_exp_data(exp_data: dict) -> dict:
+    """Ensure experiment run dict has string dates and parsed JSON for API."""
+    for key in ("created_at", "updated_at", "completed_at"):
+        if exp_data.get(key) is not None and not isinstance(exp_data[key], str):
+            exp_data[key] = str(exp_data[key])
+    for key in ("config", "results_summary"):
+        if exp_data.get(key) and isinstance(exp_data[key], str):
+            try:
+                exp_data[key] = json.loads(exp_data[key])
+            except (json.JSONDecodeError, TypeError):
+                exp_data[key] = None
+    if exp_data.get("status") is None:
+        exp_data["status"] = "unknown"
+    return exp_data
+
+
 @router.get("/{experiment_run_id}", response_model=ExperimentResultsResponse, summary="Get experiment results")
 async def get_experiment_results(experiment_run_id: str) -> ExperimentResultsResponse:
     """Retrieve stored results for a specific experiment run."""
-    from sqlalchemy import text
-    from ...db.session import engine
+    from ...core.config import settings
     import json
-    
+
     logger.info(f"Retrieving experiment results: experiment_run_id={experiment_run_id}")
-    
+
     try:
+        if getattr(settings, "use_mongodb", False):
+            from ...db.mongo_repositories import (
+                mongo_find_experiment_run,
+                mongo_find_campaign_analyses_by_run,
+                mongo_find_image_analysis_results_by_run,
+                mongo_find_visual_element_correlations_by_run,
+            )
+            from ...schemas.experiments import (
+                ExperimentRunStored,
+                CampaignAnalysisResult,
+                ImageAnalysisStoredResult,
+                VisualElementCorrelationStored,
+            )
+            exp_data = mongo_find_experiment_run(experiment_run_id)
+            if not exp_data:
+                raise HTTPException(status_code=404, detail="Experiment run not found")
+            exp_data = _normalize_exp_data(exp_data)
+            experiment_run = ExperimentRunStored(**exp_data)
+            campaign_docs = mongo_find_campaign_analyses_by_run(experiment_run_id)
+            campaign_analyses = []
+            for data in campaign_docs:
+                try:
+                    if data.get("query_results") and isinstance(data["query_results"], str):
+                        data = dict(data)
+                        try:
+                            data["query_results"] = json.loads(data["query_results"])
+                        except json.JSONDecodeError:
+                            data["query_results"] = None
+                    if data.get("metrics") and isinstance(data["metrics"], str):
+                        data = dict(data)
+                        try:
+                            data["metrics"] = json.loads(data["metrics"])
+                        except json.JSONDecodeError:
+                            data["metrics"] = None
+                    if data.get("products_promoted") and isinstance(data["products_promoted"], str):
+                        data = dict(data)
+                        try:
+                            data["products_promoted"] = json.loads(data["products_promoted"])
+                        except json.JSONDecodeError:
+                            data["products_promoted"] = None
+                    data.setdefault("created_at", datetime.utcnow().isoformat())
+                    campaign_analyses.append(CampaignAnalysisResult(**data))
+                except Exception as e:
+                    logger.warning("Skip campaign analysis doc: %s", e)
+                    continue
+            image_docs = mongo_find_image_analysis_results_by_run(experiment_run_id)
+            image_analyses = []
+            for data in image_docs:
+                try:
+                    for key in ("visual_elements", "dominant_colors", "email_features", "feature_catalog"):
+                        if data.get(key) and isinstance(data[key], str):
+                            data = dict(data)
+                            try:
+                                data[key] = json.loads(data[key])
+                            except json.JSONDecodeError:
+                                data[key] = None
+                    data.setdefault("created_at", datetime.utcnow().isoformat())
+                    image_analyses.append(ImageAnalysisStoredResult(**data))
+                except Exception as e:
+                    logger.warning("Skip image analysis doc: %s", e)
+                    continue
+            corr_docs = mongo_find_visual_element_correlations_by_run(experiment_run_id)
+            correlations = []
+            for data in corr_docs:
+                try:
+                    if data.get("average_performance") and isinstance(data["average_performance"], str):
+                        data = dict(data)
+                        try:
+                            data["average_performance"] = json.loads(data["average_performance"])
+                        except json.JSONDecodeError:
+                            data["average_performance"] = None
+                    data.setdefault("created_at", datetime.utcnow().isoformat())
+                    correlations.append(VisualElementCorrelationStored(**data))
+                except Exception as e:
+                    logger.warning("Skip correlation doc: %s", e)
+                    continue
+            return ExperimentResultsResponse(
+                experiment_run=experiment_run,
+                campaign_analyses=campaign_analyses,
+                image_analyses=image_analyses,
+                correlations=correlations,
+            )
+
+        from sqlalchemy import text
+        from ...db.session import engine
+
         # Get experiment run
         logger.debug(f"Querying experiment_runs table for run_id={experiment_run_id}")
         with engine.begin() as connection:
@@ -316,17 +417,22 @@ async def get_experiment_results(experiment_run_id: str) -> ExperimentResultsRes
 @router.get("/", response_model=List[ExperimentResultsResponse], summary="List all experiment runs")
 async def list_experiments() -> List[ExperimentResultsResponse]:
     """List all experiment runs."""
-    from sqlalchemy import text
-    from ...db.session import engine
-    
+    from ...core.config import settings
+
     logger.info("Listing all experiment runs")
-    
+
     try:
-        with engine.begin() as connection:
-            result = connection.execute(
-                text("SELECT experiment_run_id FROM experiment_runs ORDER BY created_at DESC LIMIT 20")
-            )
-            run_ids = [row[0] for row in result]
+        if getattr(settings, "use_mongodb", False):
+            from ...db.mongo_repositories import mongo_list_experiment_run_ids
+            run_ids = mongo_list_experiment_run_ids(limit=20)
+        else:
+            from sqlalchemy import text
+            from ...db.session import engine
+            with engine.begin() as connection:
+                result = connection.execute(
+                    text("SELECT experiment_run_id FROM experiment_runs ORDER BY created_at DESC LIMIT 20")
+                )
+                run_ids = [row[0] for row in result]
         
         logger.info(f"Found {len(run_ids)} experiment runs to retrieve")
         

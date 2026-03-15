@@ -75,50 +75,63 @@ class CampaignTargetingService:
         # Calculate estimated reach
         estimated_reach = sum(seg.size or 0 for seg in selected_segments)
 
-        # Store campaign in database (simplified - in production would use proper models)
         try:
-            with engine.begin() as connection:
-                connection.execute(
-                    text("""
-                        CREATE TABLE IF NOT EXISTS targeted_campaigns (
-                            campaign_id TEXT PRIMARY KEY,
-                            campaign_name TEXT NOT NULL,
-                            channel TEXT NOT NULL,
-                            objective TEXT NOT NULL,
-                            segment_ids TEXT NOT NULL,
-                            constraints TEXT,
-                            products TEXT,
-                            product_images TEXT,
-                            estimated_reach INTEGER,
-                            status TEXT DEFAULT 'draft',
-                            created_at TEXT NOT NULL
-                        )
-                    """)
+            from ..core.config import settings
+            if getattr(settings, "use_mongodb", False):
+                from ..db.mongo_repositories import mongo_upsert_targeted_campaign
+                mongo_upsert_targeted_campaign(
+                    campaign_id=campaign_id,
+                    campaign_name=campaign_name,
+                    channel=channel,
+                    objective=objective,
+                    segment_ids=segment_ids,
+                    constraints=constraints,
+                    products=products,
+                    product_images=product_images,
+                    estimated_reach=estimated_reach,
+                    status="draft",
                 )
-                
-                import json
-                connection.execute(
-                    text("""
-                        INSERT INTO targeted_campaigns 
-                        (campaign_id, campaign_name, channel, objective, segment_ids, constraints, products, product_images, estimated_reach, status, created_at)
-                        VALUES (:campaign_id, :campaign_name, :channel, :objective, :segment_ids, :constraints, :products, :product_images, :estimated_reach, :status, :created_at)
-                    """),
-                    {
-                        "campaign_id": campaign_id,
-                        "campaign_name": campaign_name,
-                        "channel": channel,
-                        "objective": objective,
-                        "segment_ids": json.dumps(segment_ids),
-                        "constraints": json.dumps(constraints) if constraints else None,
-                        "products": json.dumps(products) if products else None,
-                        "product_images": json.dumps(product_images) if product_images else None,
-                        "estimated_reach": estimated_reach,
-                        "status": "draft",
-                        "created_at": datetime.utcnow().isoformat(),
-                    }
-                )
-        except Exception as e:
-            # If table creation fails, still return the campaign data
+            else:
+                with engine.begin() as connection:
+                    connection.execute(
+                        text("""
+                            CREATE TABLE IF NOT EXISTS targeted_campaigns (
+                                campaign_id TEXT PRIMARY KEY,
+                                campaign_name TEXT NOT NULL,
+                                channel TEXT NOT NULL,
+                                objective TEXT NOT NULL,
+                                segment_ids TEXT NOT NULL,
+                                constraints TEXT,
+                                products TEXT,
+                                product_images TEXT,
+                                estimated_reach INTEGER,
+                                status TEXT DEFAULT 'draft',
+                                created_at TEXT NOT NULL
+                            )
+                        """)
+                    )
+                    import json
+                    connection.execute(
+                        text("""
+                            INSERT INTO targeted_campaigns 
+                            (campaign_id, campaign_name, channel, objective, segment_ids, constraints, products, product_images, estimated_reach, status, created_at)
+                            VALUES (:campaign_id, :campaign_name, :channel, :objective, :segment_ids, :constraints, :products, :product_images, :estimated_reach, :status, :created_at)
+                        """),
+                        {
+                            "campaign_id": campaign_id,
+                            "campaign_name": campaign_name,
+                            "channel": channel,
+                            "objective": objective,
+                            "segment_ids": json.dumps(segment_ids),
+                            "constraints": json.dumps(constraints) if constraints else None,
+                            "products": json.dumps(products) if products else None,
+                            "product_images": json.dumps(product_images) if product_images else None,
+                            "estimated_reach": estimated_reach,
+                            "status": "draft",
+                            "created_at": datetime.utcnow().isoformat(),
+                        }
+                    )
+        except Exception:
             pass
 
         return {
@@ -184,24 +197,29 @@ class CampaignTargetingService:
 
     def get_campaign_performance(self, campaign_id: str) -> Dict[str, Any]:
         """Get campaign performance breakdown by segment."""
-        # In production, this would query actual performance data
-        # For now, return simulated data
-        
         try:
-            with engine.begin() as connection:
-                result = connection.execute(
-                    text("SELECT * FROM targeted_campaigns WHERE campaign_id = :campaign_id"),
-                    {"campaign_id": campaign_id}
-                )
-                row = result.fetchone()
+            from ..core.config import settings
+            if getattr(settings, "use_mongodb", False):
+                from ..db.mongo_repositories import mongo_find_targeted_campaign
+                row = mongo_find_targeted_campaign(campaign_id)
                 if not row:
-                    return {
-                        "campaign_id": campaign_id,
-                        "error": "Campaign not found",
-                    }
-                
-                import json
-                segment_ids = json.loads(row._mapping.get("segment_ids", "[]"))
+                    return {"campaign_id": campaign_id, "error": "Campaign not found"}
+                segment_ids = row.get("segment_ids") or []
+                if isinstance(segment_ids, str):
+                    import json
+                    segment_ids = json.loads(segment_ids)
+            else:
+                with engine.begin() as connection:
+                    result = connection.execute(
+                        text("SELECT * FROM targeted_campaigns WHERE campaign_id = :campaign_id"),
+                        {"campaign_id": campaign_id}
+                    )
+                    row = result.fetchone()
+                    if not row:
+                        return {"campaign_id": campaign_id, "error": "Campaign not found"}
+                    row = dict(row._mapping)
+                    import json
+                    segment_ids = json.loads(row.get("segment_ids", "[]"))
         except Exception:
             segment_ids = []
 

@@ -27,7 +27,8 @@ class PromptToSqlService:
 
     def __init__(self, db_engine: Optional[Engine] = None, use_llm: Optional[bool] = None) -> None:
         self.engine = db_engine or engine
-        ensure_prompt_sql_cache_table(self.engine)
+        if not getattr(settings, "use_mongodb", False):
+            ensure_prompt_sql_cache_table(self.engine)
         self.use_llm = use_llm if use_llm is not None else settings.use_llm_for_sql
         self.llm_service: Optional[LLMService] = None
         self.llm_providers: List[str] = []
@@ -73,7 +74,12 @@ class PromptToSqlService:
 
     def _get_schema_version(self) -> str:
         """Get current schema version for cache invalidation."""
-        # Simple version based on dataset registry modification
+        if getattr(settings, "use_mongodb", False):
+            try:
+                from ..db.mongo_repositories import mongo_list_datasets
+                return f"schema_v{len(mongo_list_datasets())}"
+            except Exception:
+                return "schema_v0"
         try:
             query = text(f"SELECT COUNT(*) as count FROM {DATASET_REGISTRY_TABLE}")
             with self.engine.begin() as connection:
@@ -90,6 +96,35 @@ class PromptToSqlService:
         schema_version = self._get_schema_version()
         now = datetime.utcnow().isoformat()
 
+        if getattr(settings, "use_mongodb", False):
+            from ..db.mongo_repositories import (
+                mongo_find_prompt_sql_cache,
+                mongo_delete_prompt_sql_cache,
+                mongo_update_prompt_sql_cache_usage,
+            )
+            cached = mongo_find_prompt_sql_cache(prompt_hash)
+            if not cached:
+                return None
+            expires_at = cached.get("expires_at")
+            if expires_at:
+                try:
+                    expires_dt = datetime.fromisoformat(expires_at)
+                    if datetime.utcnow() > expires_dt:
+                        mongo_delete_prompt_sql_cache(prompt_hash)
+                        return None
+                except Exception:
+                    pass
+            if cached.get("schema_version") != schema_version:
+                mongo_delete_prompt_sql_cache(prompt_hash)
+                return None
+            mongo_update_prompt_sql_cache_usage(prompt_hash, now)
+            if isinstance(cached.get("columns"), str):
+                try:
+                    cached["columns"] = json.loads(cached["columns"])
+                except Exception:
+                    cached["columns"] = []
+            return cached
+
         query = text(
             f"""
             SELECT prompt, sql_query, table_name, business, dataset_name, columns,
@@ -103,13 +138,11 @@ class PromptToSqlService:
             row = result.fetchone()
             if row:
                 cached = dict(row._mapping)
-                # Check if cache entry is expired
                 expires_at = cached.get("expires_at")
                 if expires_at:
                     try:
                         expires_dt = datetime.fromisoformat(expires_at)
                         if datetime.utcnow() > expires_dt:
-                            # Cache expired, delete it
                             connection.execute(
                                 text(f"DELETE FROM {PROMPT_SQL_CACHE_TABLE} WHERE prompt_hash = :prompt_hash"),
                                 {"prompt_hash": prompt_hash},
@@ -117,17 +150,12 @@ class PromptToSqlService:
                             return None
                     except Exception:
                         pass
-
-                # Check schema version mismatch
                 if cached.get("schema_version") != schema_version:
-                    # Schema changed, invalidate cache
                     connection.execute(
                         text(f"DELETE FROM {PROMPT_SQL_CACHE_TABLE} WHERE prompt_hash = :prompt_hash"),
                         {"prompt_hash": prompt_hash},
                     )
                     return None
-
-                # Update usage statistics
                 connection.execute(
                     text(
                         f"""
@@ -139,14 +167,11 @@ class PromptToSqlService:
                     ),
                     {"prompt_hash": prompt_hash, "last_used_at": now},
                 )
-
-                # Parse columns JSON if it's a string
                 if isinstance(cached.get("columns"), str):
                     try:
                         cached["columns"] = json.loads(cached["columns"])
                     except Exception:
                         cached["columns"] = []
-
                 return cached
         return None
 
@@ -169,7 +194,28 @@ class PromptToSqlService:
         if ttl_seconds:
             expires_at = (datetime.utcnow() + timedelta(seconds=ttl_seconds)).isoformat()
 
-        columns_json = json.dumps(table_info.get("columns", []))
+        columns_val = table_info.get("columns", [])
+        columns_json = json.dumps(columns_val) if isinstance(columns_val, (list, dict)) else columns_val
+
+        if getattr(settings, "use_mongodb", False):
+            from ..db.mongo_repositories import mongo_upsert_prompt_sql_cache
+            mongo_upsert_prompt_sql_cache(
+                prompt_hash=prompt_hash,
+                prompt=normalized_prompt,
+                sql_query=sql_query,
+                table_name=table_info.get("table_name"),
+                business=table_info.get("business"),
+                dataset_name=table_info.get("dataset_name"),
+                columns=columns_val,
+                schema_version=schema_version,
+                generated_by=generated_by,
+                model=model,
+                last_used_at=now,
+                usage_count=0,
+                ttl_seconds=ttl_seconds,
+                expires_at=expires_at,
+            )
+            return
 
         with self.engine.begin() as connection:
             connection.execute(

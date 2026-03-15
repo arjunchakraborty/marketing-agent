@@ -11,7 +11,7 @@ export function ApiConnectionTest() {
     setStatus("testing");
     setMessage("Testing connection...");
     
-    const base = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:2121/api";
+    const base = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000/api";
     setApiBase(base);
     
     try {
@@ -49,7 +49,7 @@ export function ApiConnectionTest() {
       </h3>
       <div className="space-y-2">
         <div className="text-xs text-slate-600 dark:text-slate-300">
-          API Base: {apiBase || process.env.NEXT_PUBLIC_API_BASE || "http://localhost:2121/api"}
+          API Base: {apiBase || process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000/api"}
         </div>
         <button
           onClick={testConnection}

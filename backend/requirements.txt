@@ -20,4 +20,5 @@ torchvision
 transformers
 chromadb
 websockets
+pymongo
 

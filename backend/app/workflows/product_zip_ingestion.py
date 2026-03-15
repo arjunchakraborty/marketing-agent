@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 
 from ..core.config import settings
-from ..services.vector_db_service import VectorDBService
+from ..services.vector_db_service import get_vector_db_service
 from ..services.zip_handler import extract_zip_file, cleanup_directory
 
 logger = logging.getLogger(__name__)
@@ -344,7 +344,7 @@ def load_product_zip_to_vector_db(
         
         # Initialize services
         try:
-            vector_db_service = VectorDBService(
+            vector_db_service = get_vector_db_service(
                 collection_name=collection_name or "UCO_Gear_Products"
             )
             

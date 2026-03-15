@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:2121/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api";
 
 // Debug helper - log API base in development
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
@@ -261,3 +261,71 @@ export async function getCampaignPerformance(campaignId: string) {
     throw error;
   }
 }
+
+// Ingestion: vector DB (campaign data) zip upload
+export interface VectorDbUploadDetails {
+  status?: string;
+  total_campaigns?: number;
+  loaded?: number;
+  skipped?: number;
+  errors?: number;
+  campaigns_with_images?: number;
+  campaigns_without_images?: number;
+  collection_name?: string;
+  error_details?: Array<{ campaign_id: string; error: string }>;
+}
+
+export interface ProductUploadDetails {
+  products_processed?: number;
+  images_stored?: number;
+  collection_name?: string;
+  product_ids?: string[];
+}
+
+export interface ZipIngestionResponse<T = Record<string, unknown>> {
+  status: string;
+  extracted_path?: string;
+  details: T;
+}
+
+export async function uploadVectorDbZip(
+  file: File,
+  options?: {
+    collectionName?: string;
+    overwriteExisting?: boolean;
+    replaceCollection?: boolean;
+  }
+) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const params = new URLSearchParams();
+  if (options?.collectionName) params.set("collection_name", options.collectionName);
+  if (options?.overwriteExisting !== undefined) params.set("overwrite_existing", String(options.overwriteExisting));
+  if (options?.replaceCollection !== undefined) params.set("replace_collection", String(options.replaceCollection));
+  const query = params.toString();
+  const url = `${API_BASE}/v1/ingestion/upload/vector-db${query ? `?${query}` : ""}`;
+  const response = await fetch(url, { method: "POST", body: formData });
+  return handleResponse<ZipIngestionResponse<VectorDbUploadDetails>>(response);
+}
+
+export async function uploadProductsZip(
+  file: File,
+  businessName?: string,
+  collectionName?: string
+) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const params = new URLSearchParams();
+  if (businessName) params.set("business_name", businessName);
+  if (collectionName) params.set("collection_name", collectionName);
+  const query = params.toString();
+  const url = `${API_BASE}/v1/ingestion/upload/products${query ? `?${query}` : ""}`;
+  const response = await fetch(url, { method: "POST", body: formData });
+  return handleResponse<ZipIngestionResponse<ProductUploadDetails>>(response);
+}
+
+/** @deprecated Use ZipIngestionResponse<VectorDbUploadDetails> or ZipIngestionResponse<ProductUploadDetails> */
+export type CampaignDataZipUploadResponse = ZipIngestionResponse<VectorDbUploadDetails>;
+
+/** Alias for product zip response */
+export type ProductZipUploadResponse = ZipIngestionResponse<ProductUploadDetails>;

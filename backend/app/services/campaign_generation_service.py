@@ -1115,70 +1115,91 @@ class CampaignGenerationService:
     ) -> None:
         """Store the generated campaign in the database."""
         try:
-            # Ensure table exists
-            with engine.begin() as connection:
-                connection.execute(text("""
-                    CREATE TABLE IF NOT EXISTS email_campaigns (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        campaign_id TEXT UNIQUE NOT NULL,
-                        campaign_name TEXT NOT NULL,
-                        objective TEXT NOT NULL,
-                        audience_segment TEXT,
-                        subject_line TEXT NOT NULL,
-                        preview_text TEXT,
-                        greeting TEXT,
-                        body TEXT NOT NULL,
-                        call_to_action TEXT,
-                        closing TEXT,
-                        footer TEXT,
-                        html_template TEXT,
-                        hero_image_url TEXT,
-                        product_image_urls TEXT,
-                        subject_line_variations TEXT,
-                        design_recommendations TEXT,
-                        talking_points TEXT,
-                        created_at TEXT NOT NULL,
-                        updated_at TEXT
+            now = datetime.utcnow().isoformat()
+            doc = {
+                "campaign_name": campaign_name,
+                "objective": objective,
+                "audience_segment": audience_segment,
+                "subject_line": email_content.subject_line,
+                "preview_text": email_content.preview_text,
+                "greeting": email_content.greeting,
+                "body": email_content.body,
+                "call_to_action": email_content.call_to_action,
+                "closing": email_content.closing,
+                "footer": email_content.footer,
+                "html_template": email_content.html_template,
+                "hero_image_url": email_content.hero_image_url,
+                "product_image_urls": email_content.product_image_urls,
+                "subject_line_variations": subject_line_variations,
+                "design_recommendations": design_recommendations,
+                "talking_points": talking_points,
+                "created_at": now,
+            }
+            if getattr(settings, "use_mongodb", False):
+                from ..db.mongo_repositories import mongo_upsert_email_campaign
+                mongo_upsert_email_campaign(campaign_id, doc)
+            else:
+                with engine.begin() as connection:
+                    connection.execute(text("""
+                        CREATE TABLE IF NOT EXISTS email_campaigns (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            campaign_id TEXT UNIQUE NOT NULL,
+                            campaign_name TEXT NOT NULL,
+                            objective TEXT NOT NULL,
+                            audience_segment TEXT,
+                            subject_line TEXT NOT NULL,
+                            preview_text TEXT,
+                            greeting TEXT,
+                            body TEXT NOT NULL,
+                            call_to_action TEXT,
+                            closing TEXT,
+                            footer TEXT,
+                            html_template TEXT,
+                            hero_image_url TEXT,
+                            product_image_urls TEXT,
+                            subject_line_variations TEXT,
+                            design_recommendations TEXT,
+                            talking_points TEXT,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT
+                        )
+                    """))
+                    connection.execute(
+                        text("""
+                            INSERT INTO email_campaigns
+                            (campaign_id, campaign_name, objective, audience_segment,
+                             subject_line, preview_text, greeting, body, call_to_action,
+                             closing, footer, html_template, hero_image_url, product_image_urls,
+                             subject_line_variations, design_recommendations,
+                             talking_points, created_at)
+                            VALUES (:campaign_id, :campaign_name, :objective, :audience_segment,
+                                    :subject_line, :preview_text, :greeting, :body, :call_to_action,
+                                    :closing, :footer, :html_template, :hero_image_url, :product_image_urls,
+                                    :subject_line_variations, :design_recommendations,
+                                    :talking_points, :created_at)
+                        """),
+                        {
+                            "campaign_id": campaign_id,
+                            "campaign_name": campaign_name,
+                            "objective": objective,
+                            "audience_segment": audience_segment,
+                            "subject_line": email_content.subject_line,
+                            "preview_text": email_content.preview_text,
+                            "greeting": email_content.greeting,
+                            "body": email_content.body,
+                            "call_to_action": email_content.call_to_action,
+                            "closing": email_content.closing,
+                            "footer": email_content.footer,
+                            "html_template": email_content.html_template,
+                            "hero_image_url": email_content.hero_image_url,
+                            "product_image_urls": json.dumps(email_content.product_image_urls) if email_content.product_image_urls else None,
+                            "subject_line_variations": json.dumps(subject_line_variations),
+                            "design_recommendations": json.dumps(design_recommendations),
+                            "talking_points": json.dumps(talking_points),
+                            "created_at": now,
+                        }
                     )
-                """))
-                
-                # Insert campaign
-                connection.execute(
-                    text("""
-                        INSERT INTO email_campaigns
-                        (campaign_id, campaign_name, objective, audience_segment,
-                         subject_line, preview_text, greeting, body, call_to_action,
-                         closing, footer, html_template, hero_image_url, product_image_urls,
-                         subject_line_variations, design_recommendations,
-                         talking_points, created_at)
-                        VALUES (:campaign_id, :campaign_name, :objective, :audience_segment,
-                                :subject_line, :preview_text, :greeting, :body, :call_to_action,
-                                :closing, :footer, :html_template, :hero_image_url, :product_image_urls,
-                                :subject_line_variations, :design_recommendations,
-                                :talking_points, :created_at)
-                    """),
-                    {
-                        "campaign_id": campaign_id,
-                        "campaign_name": campaign_name,
-                        "objective": objective,
-                        "audience_segment": audience_segment,
-                        "subject_line": email_content.subject_line,
-                        "preview_text": email_content.preview_text,
-                        "greeting": email_content.greeting,
-                        "body": email_content.body,
-                        "call_to_action": email_content.call_to_action,
-                        "closing": email_content.closing,
-                        "footer": email_content.footer,
-                        "html_template": email_content.html_template,
-                        "hero_image_url": email_content.hero_image_url,
-                        "product_image_urls": json.dumps(email_content.product_image_urls) if email_content.product_image_urls else None,
-                        "subject_line_variations": json.dumps(subject_line_variations),
-                        "design_recommendations": json.dumps(design_recommendations),
-                        "talking_points": json.dumps(talking_points),
-                        "created_at": datetime.utcnow().isoformat(),
-                    }
-                )
-            logger.info(f"Stored campaign in database: campaign_id={campaign_id}")
+            logger.info("Stored campaign in database: campaign_id=%s", campaign_id)
         except Exception as e:
             logger.warning(f"Failed to store campaign in database: {str(e)}", exc_info=True)
             # Don't fail the request if storage fails
@@ -1186,6 +1207,10 @@ class CampaignGenerationService:
     def list_campaigns(self, limit: int = 20, offset: int = 0) -> List[EmailCampaignResponse]:
         """List all generated campaigns."""
         try:
+            if getattr(settings, "use_mongodb", False):
+                from ..db.mongo_repositories import mongo_list_email_campaigns
+                rows = mongo_list_email_campaigns(limit=limit, offset=offset)
+                return [self._row_to_campaign_response(d) for d in rows]
             with engine.begin() as connection:
                 result = connection.execute(
                     text("""
@@ -1195,18 +1220,18 @@ class CampaignGenerationService:
                     """),
                     {"limit": limit, "offset": offset}
                 )
-                campaigns = []
-                for row in result:
-                    data = dict(row._mapping)
-                    campaigns.append(self._row_to_campaign_response(data))
-                return campaigns
+                return [self._row_to_campaign_response(dict(row._mapping)) for row in result]
         except Exception as e:
-            logger.error(f"Failed to list campaigns: {str(e)}", exc_info=True)
+            logger.error("Failed to list campaigns: %s", e, exc_info=True)
             return []
 
     def get_campaign(self, campaign_id: str) -> Optional[EmailCampaignResponse]:
         """Get a specific campaign by ID."""
         try:
+            if getattr(settings, "use_mongodb", False):
+                from ..db.mongo_repositories import mongo_find_email_campaign
+                row = mongo_find_email_campaign(campaign_id)
+                return self._row_to_campaign_response(row) if row else None
             with engine.begin() as connection:
                 result = connection.execute(
                     text("SELECT * FROM email_campaigns WHERE campaign_id = :campaign_id"),
@@ -1217,7 +1242,7 @@ class CampaignGenerationService:
                     return None
                 return self._row_to_campaign_response(dict(row._mapping))
         except Exception as e:
-            logger.error(f"Failed to get campaign: {str(e)}", exc_info=True)
+            logger.error("Failed to get campaign: %s", e, exc_info=True)
             return None
 
     def _row_to_campaign_response(self, row: Dict) -> EmailCampaignResponse:

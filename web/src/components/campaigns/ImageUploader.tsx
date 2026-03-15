@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:2121/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api";
 
 interface ImageUploaderProps {
   onUploadComplete?: (result: any) => void;

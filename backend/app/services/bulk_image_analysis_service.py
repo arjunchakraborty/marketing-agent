@@ -91,19 +91,27 @@ def analyze_and_store_image(
     """
     image_id = str(uuid.uuid4())
     
-    # Check if analysis already exists
     if skip_existing:
-        with db_engine.begin() as connection:
-            result = connection.execute(
-                text("""
-                    SELECT id FROM image_analysis_results 
-                    WHERE image_path = :image_path AND experiment_run_id = :experiment_run_id
-                """),
+        if getattr(settings, "use_mongodb", False):
+            from ..db.mongodb import get_database
+            from ..db.collections import COLL_IMAGE_ANALYSIS_RESULTS
+            if get_database()[COLL_IMAGE_ANALYSIS_RESULTS].find_one(
                 {"image_path": str(image_path), "experiment_run_id": experiment_run_id}
-            )
-            if result.fetchone():
-                logger.info(f"Skipping {image_path.name} - analysis already exists")
+            ):
+                logger.info("Skipping %s - analysis already exists", image_path.name)
                 return {"status": "skipped", "image_path": str(image_path)}
+        else:
+            with db_engine.begin() as connection:
+                result = connection.execute(
+                    text("""
+                        SELECT id FROM image_analysis_results 
+                        WHERE image_path = :image_path AND experiment_run_id = :experiment_run_id
+                    """),
+                    {"image_path": str(image_path), "experiment_run_id": experiment_run_id}
+                )
+                if result.fetchone():
+                    logger.info("Skipping %s - analysis already exists", image_path.name)
+                    return {"status": "skipped", "image_path": str(image_path)}
     
     try:
         # Read image and convert to base64
@@ -126,72 +134,93 @@ def analyze_and_store_image(
         feature_catalog = analysis_result.get("feature_catalog", {})
         
         # Store in database
-        with db_engine.begin() as connection:
-            connection.execute(
-                text("""
-                    INSERT INTO image_analysis_results
-                    (experiment_run_id, campaign_id, image_id, image_path, visual_elements, 
-                     dominant_colors, composition_analysis, text_content, overall_description, 
-                     marketing_relevance, email_features, feature_catalog)
-                    VALUES (:experiment_run_id, :campaign_id, :image_id, :image_path, :visual_elements,
-                            :dominant_colors, :composition_analysis, :text_content, :overall_description, 
-                            :marketing_relevance, :email_features, :feature_catalog)
-                """),
-                {
-                    "experiment_run_id": experiment_run_id,
-                    "campaign_id": campaign_id,
-                    "image_id": analysis_result.get("image_id", image_id),
-                    "image_path": str(image_path),
-                    "visual_elements": json.dumps(analysis_result.get("visual_elements", [])),
-                    "dominant_colors": json.dumps(analysis_result.get("dominant_colors", [])),
-                    "composition_analysis": analysis_result.get("composition_analysis"),
-                    "text_content": analysis_result.get("text_content"),
-                    "overall_description": analysis_result.get("overall_description"),
-                    "marketing_relevance": analysis_result.get("marketing_relevance"),
-                    "email_features": json.dumps(email_features) if email_features else None,
-                    "feature_catalog": json.dumps(feature_catalog) if feature_catalog else None,
-                }
+        if getattr(settings, "use_mongodb", False):
+            from ..db.mongo_repositories import (
+                mongo_insert_image_analysis_result,
+                mongo_insert_email_feature_catalog,
             )
-            
-            # Store individual features in email_feature_catalog table
+            mongo_insert_image_analysis_result(
+                experiment_run_id=experiment_run_id,
+                campaign_id=campaign_id,
+                image_id=analysis_result.get("image_id", image_id),
+                image_path=str(image_path),
+                visual_elements=analysis_result.get("visual_elements", []),
+                dominant_colors=analysis_result.get("dominant_colors", []),
+                composition_analysis=analysis_result.get("composition_analysis"),
+                text_content=analysis_result.get("text_content"),
+                overall_description=analysis_result.get("overall_description"),
+                marketing_relevance=analysis_result.get("marketing_relevance"),
+                email_features=email_features,
+                feature_catalog=feature_catalog,
+            )
             if email_features and campaign_id:
                 for feature in email_features:
                     try:
-                        feature_category = feature.get("feature_category", "content")
-                        feature_type = feature.get("feature_type", "unknown")
-                        bbox = feature.get("bbox")
-                        confidence = feature.get("confidence", 0.0)
-                        position = feature.get("position")
-                        
-                        # Extract metadata
-                        metadata = {
-                            "text_content": feature.get("text_content"),
-                            "color": feature.get("color"),
-                        }
-                        
-                        connection.execute(
-                            text("""
-                                INSERT INTO email_feature_catalog
-                                (experiment_run_id, campaign_id, feature_category, feature_type,
-                                 feature_description, bbox, confidence, position, mData)
-                                VALUES (:experiment_run_id, :campaign_id, :feature_category, :feature_type,
-                                        :feature_description, :bbox, :confidence, :position, :mData)
-                            """),
-                            {
-                                "experiment_run_id": experiment_run_id,
-                                "campaign_id": campaign_id,
-                                "feature_category": feature_category,
-                                "feature_type": feature_type,
-                                "feature_description": json.dumps(feature),
-                                "bbox": json.dumps(bbox) if bbox else None,
-                                "confidence": confidence,
-                                "position": position,
-                                "mData": json.dumps(metadata),
-                            }
+                        mongo_insert_email_feature_catalog(
+                            experiment_run_id=experiment_run_id,
+                            campaign_id=campaign_id,
+                            feature_category=feature.get("feature_category", "content"),
+                            feature_type=feature.get("feature_type", "unknown"),
+                            feature_description=json.dumps(feature) if feature else None,
+                            bbox=feature.get("bbox"),
+                            confidence=feature.get("confidence", 0.0),
+                            position=feature.get("position"),
+                            m_data={"text_content": feature.get("text_content"), "color": feature.get("color")},
                         )
                     except Exception as e:
-                        logger.error(f"Failed to store feature {feature.get('feature_type')}: {str(e)}", exc_info=True)
-                        continue
+                        logger.error("Failed to store feature %s: %s", feature.get("feature_type"), e, exc_info=True)
+        else:
+            with db_engine.begin() as connection:
+                connection.execute(
+                    text("""
+                        INSERT INTO image_analysis_results
+                        (experiment_run_id, campaign_id, image_id, image_path, visual_elements,
+                         dominant_colors, composition_analysis, text_content, overall_description,
+                         marketing_relevance, email_features, feature_catalog)
+                        VALUES (:experiment_run_id, :campaign_id, :image_id, :image_path, :visual_elements,
+                                :dominant_colors, :composition_analysis, :text_content, :overall_description,
+                                :marketing_relevance, :email_features, :feature_catalog)
+                    """),
+                    {
+                        "experiment_run_id": experiment_run_id,
+                        "campaign_id": campaign_id,
+                        "image_id": analysis_result.get("image_id", image_id),
+                        "image_path": str(image_path),
+                        "visual_elements": json.dumps(analysis_result.get("visual_elements", [])),
+                        "dominant_colors": json.dumps(analysis_result.get("dominant_colors", [])),
+                        "composition_analysis": analysis_result.get("composition_analysis"),
+                        "text_content": analysis_result.get("text_content"),
+                        "overall_description": analysis_result.get("overall_description"),
+                        "marketing_relevance": analysis_result.get("marketing_relevance"),
+                        "email_features": json.dumps(email_features) if email_features else None,
+                        "feature_catalog": json.dumps(feature_catalog) if feature_catalog else None,
+                    }
+                )
+                if email_features and campaign_id:
+                    for feature in email_features:
+                        try:
+                            connection.execute(
+                                text("""
+                                    INSERT INTO email_feature_catalog
+                                    (experiment_run_id, campaign_id, feature_category, feature_type,
+                                     feature_description, bbox, confidence, position, mData)
+                                    VALUES (:experiment_run_id, :campaign_id, :feature_category, :feature_type,
+                                            :feature_description, :bbox, :confidence, :position, :mData)
+                                """),
+                                {
+                                    "experiment_run_id": experiment_run_id,
+                                    "campaign_id": campaign_id,
+                                    "feature_category": feature.get("feature_category", "content"),
+                                    "feature_type": feature.get("feature_type", "unknown"),
+                                    "feature_description": json.dumps(feature),
+                                    "bbox": json.dumps(feature.get("bbox")) if feature.get("bbox") else None,
+                                    "confidence": feature.get("confidence", 0.0),
+                                    "position": feature.get("position"),
+                                    "mData": json.dumps({"text_content": feature.get("text_content"), "color": feature.get("color")}),
+                                }
+                            )
+                        except Exception as e:
+                            logger.error("Failed to store feature %s: %s", feature.get("feature_type"), e, exc_info=True)
         
         logger.info(f"Successfully analyzed and stored: {image_path.name}")
         return {
@@ -244,10 +273,10 @@ def analyze_all_images_in_directory(
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         experiment_run_id = f"bulk_analysis_{timestamp}"
     
-    logger.info(f"Starting bulk image analysis: directory={directory_path}, experiment_run_id={experiment_run_id}")
-    
-    # Ensure tables exist
-    ImageAnalysisResult.__table__.create(work_engine, checkfirst=True)
+    logger.info("Starting bulk image analysis: directory=%s, experiment_run_id=%s", directory_path, experiment_run_id)
+
+    if not getattr(settings, "use_mongodb", False):
+        ImageAnalysisResult.__table__.create(work_engine, checkfirst=True)
     
     # Find all image files
     image_extensions = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
@@ -335,36 +364,36 @@ def get_analysis_for_campaign(
         List of analysis results
     """
     work_engine = db_engine or engine
-    
-    query = """
-        SELECT * FROM image_analysis_results 
-        WHERE campaign_id = :campaign_id
-    """
-    params = {"campaign_id": campaign_id}
-    
-    if experiment_run_id:
-        query += " AND experiment_run_id = :experiment_run_id"
-        params["experiment_run_id"] = experiment_run_id
-    
-    query += " ORDER BY created_at DESC"
-    
-    with work_engine.begin() as connection:
-        result = connection.execute(text(query), params)
-        rows = [dict(row._mapping) for row in result]
-    
-    # Parse JSON fields
+
+    if getattr(settings, "use_mongodb", False):
+        from ..db.mongo_repositories import mongo_find_image_analysis_results_by_campaign
+        rows = mongo_find_image_analysis_results_by_campaign(campaign_id, experiment_run_id)
+    else:
+        query = """
+            SELECT * FROM image_analysis_results 
+            WHERE campaign_id = :campaign_id
+        """
+        params = {"campaign_id": campaign_id}
+        if experiment_run_id:
+            query += " AND experiment_run_id = :experiment_run_id"
+            params["experiment_run_id"] = experiment_run_id
+        query += " ORDER BY created_at DESC"
+        with work_engine.begin() as connection:
+            result = connection.execute(text(query), params)
+            rows = [dict(row._mapping) for row in result]
+
     for row in rows:
-        if row.get("visual_elements"):
+        if isinstance(row.get("visual_elements"), str):
             try:
                 row["visual_elements"] = json.loads(row["visual_elements"])
             except (json.JSONDecodeError, TypeError):
                 pass
-        if row.get("dominant_colors"):
+        if isinstance(row.get("dominant_colors"), str):
             try:
                 row["dominant_colors"] = json.loads(row["dominant_colors"])
             except (json.JSONDecodeError, TypeError):
                 pass
-        if row.get("feature_catalog"):
+        if isinstance(row.get("feature_catalog"), str):
             try:
                 row["feature_catalog"] = json.loads(row["feature_catalog"])
             except (json.JSONDecodeError, TypeError):

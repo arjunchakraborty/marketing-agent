@@ -29,7 +29,8 @@ class KpiPrecomputationService:
 
     def __init__(self, db_engine: Optional[Engine] = None) -> None:
         self.engine = db_engine or engine
-        ensure_kpi_precomputed_table(self.engine)
+        if not getattr(settings, "use_mongodb", False):
+            ensure_kpi_precomputed_table(self.engine)
         self.prompt_sql_service = PromptToSqlService(db_engine=self.engine)
 
     def _normalize_prompt(self, prompt: str, business: Optional[str] = None) -> str:
@@ -50,32 +51,40 @@ class KpiPrecomputationService:
             if not sql_query:
                 raise ValueError(f"Failed to generate SQL for KPI: {kpi_name}")
 
-            # Store in database
             now = datetime.utcnow().isoformat()
-            with self.engine.begin() as connection:
-                connection.execute(
-                    text(
-                        f"""
-                        INSERT INTO {KPI_PRECOMPUTED_TABLE} (
-                            kpi_name, prompt, sql_query, business, created_at, updated_at
-                        ) VALUES (
-                            :kpi_name, :prompt, :sql_query, :business, :created_at, :updated_at
-                        )
-                        ON CONFLICT(kpi_name, business) DO UPDATE SET
-                            prompt=excluded.prompt,
-                            sql_query=excluded.sql_query,
-                            updated_at=excluded.updated_at
-                        """
-                    ),
-                    {
-                        "kpi_name": kpi_name,
-                        "prompt": normalized_prompt,
-                        "sql_query": sql_query,
-                        "business": business,
-                        "created_at": now,
-                        "updated_at": now,
-                    },
+            if getattr(settings, "use_mongodb", False):
+                from ..db.mongo_repositories import mongo_upsert_precomputed_kpi
+                mongo_upsert_precomputed_kpi(
+                    kpi_name=kpi_name,
+                    prompt=normalized_prompt,
+                    sql_query=sql_query,
+                    business=business,
                 )
+            else:
+                with self.engine.begin() as connection:
+                    connection.execute(
+                        text(
+                            f"""
+                            INSERT INTO {KPI_PRECOMPUTED_TABLE} (
+                                kpi_name, prompt, sql_query, business, created_at, updated_at
+                            ) VALUES (
+                                :kpi_name, :prompt, :sql_query, :business, :created_at, :updated_at
+                            )
+                            ON CONFLICT(kpi_name, business) DO UPDATE SET
+                                prompt=excluded.prompt,
+                                sql_query=excluded.sql_query,
+                                updated_at=excluded.updated_at
+                            """
+                        ),
+                        {
+                            "kpi_name": kpi_name,
+                            "prompt": normalized_prompt,
+                            "sql_query": sql_query,
+                            "business": business,
+                            "created_at": now,
+                            "updated_at": now,
+                        },
+                    )
 
             return {
                 "kpi_name": kpi_name,
@@ -104,7 +113,13 @@ class KpiPrecomputationService:
 
     def get_precomputed_kpi_sql(self, kpi_name: str, business: Optional[str] = None) -> Optional[str]:
         """Retrieve precomputed SQL for a KPI."""
-        # SQLite doesn't support NULLS LAST, so we use CASE to prioritize business-specific entries
+        if getattr(settings, "use_mongodb", False):
+            from ..db.mongo_repositories import mongo_find_precomputed_kpi, mongo_update_precomputed_kpi_execution
+            doc = mongo_find_precomputed_kpi(kpi_name, business)
+            if not doc:
+                return None
+            mongo_update_precomputed_kpi_execution(kpi_name, business, datetime.utcnow().isoformat())
+            return doc.get("sql_query")
         query = text(
             f"""
             SELECT sql_query FROM {KPI_PRECOMPUTED_TABLE}
@@ -117,7 +132,6 @@ class KpiPrecomputationService:
             result = connection.execute(query, {"kpi_name": kpi_name, "business": business})
             row = result.fetchone()
             if row:
-                # Update usage statistics
                 connection.execute(
                     text(
                         f"""

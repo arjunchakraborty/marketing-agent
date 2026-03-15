@@ -1,0 +1,26 @@
+# Local dev and caches
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Env and secrets (use Vercel Environment Variables)
+.env
+.env.*
+!.env.example
+
+# Local storage (ephemeral on serverless; use external DB/storage in production)
+storage/
+
+# Docs and dev tooling
+docs/
+*.md
+!README.md
+
+# Tests and scripts (not needed at runtime)
+tests/
+*.test.py
+conftest.py

@@ -141,18 +141,64 @@ def ingest_klaviyo_csv(
     # Load and normalize CSV
     df = pd.read_csv(csv_path)
     df = _normalize_klaviyo_columns(df)
-    
-    # Ensure campaigns table exists
-    _ensure_campaigns_table(work_engine)
-    
+
+    use_mongodb = getattr(settings, "use_mongodb", False)
+    if not use_mongodb:
+        # Ensure campaigns table exists
+        _ensure_campaigns_table(work_engine)
+
     # Prepare data for insertion
     now = datetime.utcnow().isoformat()
     inserted_count = 0
     updated_count = 0
     errors = []
-    
-    with work_engine.begin() as connection:
+
+    if use_mongodb:
+        from ..db.mongo_repositories import mongo_upsert_campaign
         for _, row in df.iterrows():
+            try:
+                campaign_id = str(row.get("campaign_id", "")).strip()
+                if not campaign_id:
+                    campaign_name = str(row.get("campaign_name", "")).strip()
+                    if campaign_name:
+                        campaign_id = _normalize_identifier(campaign_name)
+                    else:
+                        errors.append(f"Row {len(errors) + 1}: Missing campaign_id and campaign_name")
+                        continue
+                products = row.get("products")
+                if products is not None and hasattr(products, "__iter__") and not isinstance(products, str):
+                    products = list(products) if products else None
+                elif isinstance(products, str) and products:
+                    try:
+                        products = json.loads(products)
+                    except Exception:
+                        products = [products]
+                campaign_data = {
+                    "campaign_id": campaign_id,
+                    "campaign_name": str(row.get("campaign_name", "")).strip() or None,
+                    "subject": str(row.get("subject", "")).strip() or None,
+                    "sent_at": str(row.get("sent_at", "")).strip() or None,
+                    "sent_count": int(row.get("sent_count", 0)) if pd.notna(row.get("sent_count")) else 0,
+                    "delivered_count": int(row.get("delivered_count", 0)) if pd.notna(row.get("delivered_count")) else 0,
+                    "bounced_count": int(row.get("bounced_count", 0)) if pd.notna(row.get("bounced_count")) else 0,
+                    "opened_count": int(row.get("opened_count", 0)) if pd.notna(row.get("opened_count")) else 0,
+                    "clicked_count": int(row.get("clicked_count", 0)) if pd.notna(row.get("clicked_count")) else 0,
+                    "converted_count": int(row.get("converted_count", 0)) if pd.notna(row.get("converted_count")) else 0,
+                    "revenue": float(row.get("revenue", 0.0)) if pd.notna(row.get("revenue")) else 0.0,
+                    "open_rate": float(row.get("open_rate", 0.0)) if pd.notna(row.get("open_rate")) else None,
+                    "click_rate": float(row.get("click_rate", 0.0)) if pd.notna(row.get("click_rate")) else None,
+                    "conversion_rate": float(row.get("conversion_rate", 0.0)) if pd.notna(row.get("conversion_rate")) else None,
+                    "unsubscribed_count": int(row.get("unsubscribed_count", 0)) if pd.notna(row.get("unsubscribed_count")) else 0,
+                    "spam_count": int(row.get("spam_count", 0)) if pd.notna(row.get("spam_count")) else 0,
+                    "products": products,
+                }
+                mongo_upsert_campaign(campaign_data)
+                inserted_count += 1
+            except Exception as e:
+                errors.append(f"Row {len(errors) + inserted_count + updated_count + 1}: {str(e)}")
+    else:
+        with work_engine.begin() as connection:
+            for _, row in df.iterrows():
             try:
                 # Extract campaign_id (required)
                 campaign_id = str(row.get("campaign_id", "")).strip()

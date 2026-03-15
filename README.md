@@ -261,6 +261,23 @@ Navigate to `http://localhost:3000` to explore the TripleWhale-inspired control 
 - Rerun capability with adjusted queries
 - **Top 5 campaigns only** - Automatically limits analysis to top 5 performing campaigns
 
+## Deploy Backend to Vercel
+
+The FastAPI backend can run as a serverless app on Vercel.
+
+1. **Create a Vercel project** for the backend: [vercel.com/new](https://vercel.com/new), import your repo, then set **Root Directory** to `backend`.
+
+2. **Environment variables** – In the project’s Environment Variables, set at least:
+   - `ALLOWED_ORIGINS` – Include your frontend URL (e.g. `https://your-app.vercel.app`).
+   - `DATABASE_URL` – Use a hosted database (e.g. Neon, Supabase). SQLite is not persistent on Vercel.
+   - Any API keys your app uses: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.
+
+   Copy from `backend/.env.example` and replace with production values.
+
+3. **Deploy** – Push to your connected branch or run `vercel` from the repo root (with root directory set to `backend` in the dashboard).
+
+The API will be available at `https://<your-project>.vercel.app/api` (e.g. `/api/v1/health`). Point the frontend’s `NEXT_PUBLIC_API_BASE` to this URL.
+
 ## Development Roadmap
 
 The `agent-spec.md` document captures the full roadmap. Immediate focus areas:

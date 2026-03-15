@@ -6,14 +6,16 @@ from typing import List, Optional, Sequence
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Load .env from this package directory (backend/app/core/.env) so it's read regardless of CWD
+# Load .env from backend root (backend/.env) or app/core; missing file is ignored (e.g. on Vercel)
 _THIS_DIR = Path(__file__).resolve().parent
 _ENV_FILE = _THIS_DIR / ".env"
+_BACKEND_ENV = _THIS_DIR.parent.parent / ".env"
+_ENV_FILE_RESOLVED = _BACKEND_ENV if _BACKEND_ENV.exists() else _ENV_FILE
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=str(_ENV_FILE),
+        env_file=str(_ENV_FILE_RESOLVED),
         env_file_encoding="utf-8",
         extra="allow",
     )
@@ -26,7 +28,14 @@ class Settings(BaseSettings):
     analytics_schema: str = "analytics"
     ingestion_data_root: str = "/Users/kerrief/projects/mappe/data"
 
-    allowed_origins: List[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    # MongoDB (replaces PostgreSQL for document/NoSQL storage)
+    mongodb_uri: str = Field(default="mongodb://localhost:27017", description="MongoDB connection URI (use Atlas SRV for Atlas)")
+    mongodb_database: str = Field(default="marketing_agent", description="MongoDB database name")
+    use_mongodb: bool = Field(default=False, description="Use MongoDB for document storage instead of PostgreSQL/SQLite")
+
+    allowed_origins: List[str] = Field(
+        default_factory=lambda: ["http://localhost:3000", "http://localhost:2222"]
+    )
 
     # Security Configuration
     api_keys: List[str] = Field(
@@ -46,9 +55,11 @@ class Settings(BaseSettings):
     default_llm_provider: str = Field(default="ollama", description="Default LLM provider: openai, anthropic, or ollama")
     use_llm_for_sql: bool = Field(default=True, description="Use LLM for prompt-to-SQL generation")
 
-    # Vector Search Configuration
+    # Vector Search Configuration (MongoDB Atlas Vector Search replaces ChromaDB)
     enable_vector_search: bool = Field(default=True, description="Enable vector search for semantic discovery")
-    vector_db_path: str = Field(default="storage/vectors", description="Path for vector database storage (relative to backend directory)")
+    vector_db_path: str = Field(default="storage/vectors", description="Path for ChromaDB fallback (when not using Atlas)")
+    use_atlas_vector_search: bool = Field(default=False, description="Use MongoDB Atlas Vector Search instead of ChromaDB")
+    mongodb_vector_index_name: str = Field(default="vector_index", description="Atlas Vector Search index name (create in Atlas UI with path 'embedding')")
 
     # ComfyUI Configuration
     comfyui_base_url: str = Field(default="http://localhost:8188", description="ComfyUI API base URL")

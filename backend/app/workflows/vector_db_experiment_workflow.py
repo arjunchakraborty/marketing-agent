@@ -11,7 +11,7 @@ from ..core.config import settings
 from ..services.intelligence_service import IntelligenceService
 from ..services.vector_db_service import (
     DEFAULT_PRODUCT_COLLECTION_NAME,
-    VectorDBService,
+    get_vector_db_service,
     get_product_context_for_prompts,
 )
 
@@ -286,7 +286,7 @@ def run_vector_db_experiment(
         
         for coll_name in collections_to_search:
             try:
-                vector_db_service = VectorDBService(collection_name=coll_name)
+                vector_db_service = get_vector_db_service(collection_name=coll_name)
                 
                 # Search for similar campaigns using the prompt (at least 3 for useful analysis)
                 n_results = max(3, num_campaigns)
@@ -395,25 +395,38 @@ def run_vector_db_experiment(
                 "num_campaigns": num_campaigns,
             }
             
-            with engine.begin() as connection:
-                connection.execute(
-                    text("""
-                        INSERT INTO experiment_runs 
-                        (experiment_run_id, name, description, status, config, results_summary, created_at, completed_at)
-                        VALUES (:run_id, :name, :description, :status, :config, :results_summary, :created_at, :completed_at)
-                    """),
-                    {
-                        "run_id": experiment_run_id,
-                        "name": experiment_name or f"Vector DB Experiment: {prompt_query[:50]}",
-                        "description": f"Campaign analysis using vector database search: {prompt_query}",
-                        "status": "completed",
-                        "config": json.dumps(config),
-                        "results_summary": json.dumps(results_summary),
-                        "created_at": datetime.utcnow().isoformat(),
-                        "completed_at": datetime.utcnow().isoformat(),
-                    }
+            from ..core.config import settings
+            if getattr(settings, "use_mongodb", False):
+                from ..db.mongo_repositories import mongo_insert_experiment_run
+                mongo_insert_experiment_run(
+                    experiment_run_id=experiment_run_id,
+                    name=experiment_name or f"Vector DB Experiment: {prompt_query[:50]}",
+                    description=f"Campaign analysis using vector database search: {prompt_query}",
+                    status="completed",
+                    config=config,
+                    results_summary=results_summary,
+                    completed_at=datetime.utcnow().isoformat(),
                 )
-            logger.info(f"Stored experiment run {experiment_run_id} in database")
+            else:
+                with engine.begin() as connection:
+                    connection.execute(
+                        text("""
+                            INSERT INTO experiment_runs 
+                            (experiment_run_id, name, description, status, config, results_summary, created_at, completed_at)
+                            VALUES (:run_id, :name, :description, :status, :config, :results_summary, :created_at, :completed_at)
+                        """),
+                        {
+                            "run_id": experiment_run_id,
+                            "name": experiment_name or f"Vector DB Experiment: {prompt_query[:50]}",
+                            "description": f"Campaign analysis using vector database search: {prompt_query}",
+                            "status": "completed",
+                            "config": json.dumps(config),
+                            "results_summary": json.dumps(results_summary),
+                            "created_at": datetime.utcnow().isoformat(),
+                            "completed_at": datetime.utcnow().isoformat(),
+                        }
+                    )
+            logger.info("Stored experiment run %s in database", experiment_run_id)
         except Exception as e:
             logger.warning(f"Failed to store experiment run in database: {str(e)}", exc_info=True)
             # Continue anyway - results are still returned

@@ -7,11 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  uploadCampaignDataZip,
   uploadVectorDbZip,
   uploadProductsZip,
-  type CampaignDataZipUploadResponse,
-  type ProductZipUploadResponse,
+  type ZipIngestionResponse,
+  type VectorDbUploadDetails,
+  type ProductUploadDetails,
 } from "@/lib/api";
 
 type UploadType = "campaign-data" | "products";
@@ -20,7 +20,7 @@ interface UploadResult {
   type: UploadType;
   success: boolean;
   message: string;
-  data?: CampaignDataZipUploadResponse | ProductZipUploadResponse;
+  data?: ZipIngestionResponse<VectorDbUploadDetails> | ZipIngestionResponse<ProductUploadDetails>;
   error?: string;
 }
 
@@ -95,11 +95,12 @@ export function DataUpload() {
     setUploadResult(null);
 
     try {
-      let result: CampaignDataZipUploadResponse | ShopifyIntegrationZipUploadResponse | VectorDbZipUploadResponse | ProductZipUploadResponse;
+      let result: ZipIngestionResponse<VectorDbUploadDetails> | ZipIngestionResponse<ProductUploadDetails>;
 
       switch (activeTab) {
         case "campaign-data":
           result = await uploadVectorDbZip(selectedFile, {
+            collectionName: campaignCollectionName.trim() || undefined,
             replaceCollection,
           });
           break;
@@ -167,58 +168,55 @@ export function DataUpload() {
         </p>
         {uploadResult.data && (
           <div className="mt-3 space-y-2 text-xs text-green-700 dark:text-green-300">
-            {uploadResult.type === "campaign-data" && uploadResult.data.csv_ingestion && (
-              <div>
-                <p className="font-semibold">CSV Ingestion:</p>
-                <p>Table: {uploadResult.data.csv_ingestion.table_name}</p>
-                <p>Total Rows: {uploadResult.data.csv_ingestion.total_rows}</p>
-                <p>Inserted: {uploadResult.data.csv_ingestion.inserted}</p>
-                <p>Updated: {uploadResult.data.csv_ingestion.updated}</p>
-              </div>
-            )}
-            {uploadResult.type === "campaign-data" && uploadResult.data.vector_db_loading && (
-              <div>
-                <p className="font-semibold">Image Analysis & Vector DB Loading:</p>
-                {uploadResult.data.vector_db_loading.status === "error" ? (
-                  <p className="text-red-600 dark:text-red-400">
-                    Error: {uploadResult.data.vector_db_loading.error}
-                  </p>
-                ) : (
-                  <>
-                    <p>Loaded: {uploadResult.data.vector_db_loading.loaded} campaigns</p>
-                    <p>With Images: {uploadResult.data.vector_db_loading.campaigns_with_images}</p>
-                    <p>Without Images: {uploadResult.data.vector_db_loading.campaigns_without_images}</p>
-                    <p>Collection: {uploadResult.data.vector_db_loading.collection_name}</p>
-                    {uploadResult.data.vector_db_loading.skipped > 0 && (
-                      <p>Skipped (already exists): {uploadResult.data.vector_db_loading.skipped}</p>
+            {uploadResult.type === "campaign-data" && "details" in uploadResult.data && (
+              (() => {
+                const d = uploadResult.data.details as VectorDbUploadDetails;
+                return (
+                  <div>
+                    <p className="font-semibold">Vector DB (Campaign Data):</p>
+                    <p>Status: {d.status ?? uploadResult.data.status}</p>
+                    <p>Loaded: {d.loaded ?? 0} campaigns</p>
+                    <p>Total: {d.total_campaigns ?? 0}</p>
+                    {d.campaigns_with_images != null && (
+                      <p>With Images: {d.campaigns_with_images}</p>
                     )}
-                  </>
-                )}
-              </div>
-            )}
-            {uploadResult.type === "campaign-data" && !uploadResult.data.vector_db_loading && (
-              <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 italic">
-                  Note: No image-analysis-extract folder found. Only CSV data was ingested.
-                </p>
-              </div>
-            )}
-            {uploadResult.type === "products" && uploadResult.data.details && (
-              <div>
-                <p className="font-semibold">Product Ingestion:</p>
-                <p>Products Processed: {uploadResult.data.details.products_processed}</p>
-                <p>Images Stored: {uploadResult.data.details.images_stored}</p>
-                <p>Collection: {uploadResult.data.details.collection_name}</p>
-                {uploadResult.data.details.product_ids.length > 0 && (
-                  <div className="mt-2">
-                    <p className="font-semibold">Product IDs:</p>
-                    <p className="text-xs break-words">
-                      {uploadResult.data.details.product_ids.slice(0, 10).join(", ")}
-                      {uploadResult.data.details.product_ids.length > 10 && "..."}
-                    </p>
+                    {d.campaigns_without_images != null && (
+                      <p>Without Images: {d.campaigns_without_images}</p>
+                    )}
+                    {d.collection_name && (
+                      <p>Collection: {d.collection_name}</p>
+                    )}
+                    {(d.skipped ?? 0) > 0 && (
+                      <p>Skipped (already exists): {d.skipped}</p>
+                    )}
+                    {(d.errors ?? 0) > 0 && (
+                      <p className="text-amber-600 dark:text-amber-400">Errors: {d.errors}</p>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()
+            )}
+            {uploadResult.type === "products" && "details" in uploadResult.data && (
+              (() => {
+                const d = uploadResult.data.details as ProductUploadDetails;
+                return (
+                  <div>
+                    <p className="font-semibold">Product Ingestion:</p>
+                    <p>Products Processed: {d.products_processed ?? 0}</p>
+                    <p>Images Stored: {d.images_stored ?? 0}</p>
+                    <p>Collection: {d.collection_name ?? "—"}</p>
+                    {Array.isArray(d.product_ids) && d.product_ids.length > 0 && (
+                      <div className="mt-2">
+                        <p className="font-semibold">Product IDs:</p>
+                        <p className="text-xs break-words">
+                          {d.product_ids.slice(0, 10).join(", ")}
+                          {d.product_ids.length > 10 && "..."}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
             )}
           </div>
         )}
@@ -379,10 +377,11 @@ export function DataUpload() {
               <p className="text-sm text-slate-600 dark:text-slate-400">
                 Drag and drop a zip file here, or
               </p>
-              <label htmlFor="file-upload">
-                <Button variant="outline" size="sm" asChild>
-                  <span>Browse Files</span>
-                </Button>
+              <label
+                htmlFor="file-upload"
+                className="inline-flex cursor-pointer items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                Browse Files
               </label>
             </div>
           )}

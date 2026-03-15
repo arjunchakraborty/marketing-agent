@@ -122,7 +122,9 @@ def ingest_directory(
         raise FileNotFoundError(f"Ingestion data root not found: {base_path}")
 
     work_engine = engine_override or engine
-    _ensure_registry(work_engine)
+    use_mongodb = getattr(settings, "use_mongodb", False)
+    if not use_mongodb:
+        _ensure_registry(work_engine)
 
     ingested: List[IngestedDataset] = []
 
@@ -142,8 +144,6 @@ def ingest_directory(
             df["category"] = category_slug
             df["source_file"] = str(csv_file)
 
-            df.to_sql(table_name, work_engine, if_exists="replace", index=False)
-
             dataset = IngestedDataset(
                 table_name=table_name,
                 business=business_name,
@@ -153,7 +153,28 @@ def ingest_directory(
                 row_count=len(df),
                 columns=list(df.columns),
             )
-            _record_dataset(work_engine, dataset)
+            if use_mongodb:
+                from ..db.mongo_repositories import mongo_upsert_dataset_registry, mongo_insert_dataset_rows
+                rows = df.to_dict("records")
+                for r in rows:
+                    for k, v in list(r.items()):
+                        if hasattr(v, "item"):
+                            r[k] = v.item()
+                        elif hasattr(v, "isoformat") and v is not None:
+                            r[k] = v.isoformat()
+                mongo_insert_dataset_rows(table_name, rows)
+                mongo_upsert_dataset_registry(
+                    table_name=table_name,
+                    business=business_name,
+                    category=category_slug,
+                    dataset_name=csv_file.stem,
+                    source_file=str(csv_file),
+                    row_count=len(df),
+                    columns=list(df.columns),
+                )
+            else:
+                df.to_sql(table_name, work_engine, if_exists="replace", index=False)
+                _record_dataset(work_engine, dataset)
             ingested.append(dataset)
 
     # Populate cache after ingestion: precompute standard KPIs for each business

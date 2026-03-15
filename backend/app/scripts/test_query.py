@@ -1,11 +1,11 @@
-"""Test a SQL query against the database."""
+"""Run a SQL query against the database."""
 import json
 import sys
 from sqlalchemy import text
 from app.db.session import engine
 
 
-def test_query(sql_query: str):
+def run_query(sql_query: str):
     """Execute a SQL query and return results."""
     print(f"Executing query:\n{sql_query}\n")
     print("=" * 80)
@@ -33,5 +33,5 @@ if __name__ == "__main__":
         # Default query from user
         query = """SELECT category, SUM(total_sales) FROM avalon_sunshine_customers_first_time_vs_returning_customer_sales_added_filter_traffic_avalon_sunshine_customers GROUP BY category ORDER BY SUM(total_sales) DESC LIMIT 50;"""
     
-    test_query(query)
+    run_query(query)
 

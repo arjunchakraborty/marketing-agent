@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import clsx from "clsx";
 import type { CampaignRecommendation } from "@/types/analytics";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:2121/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api";
 
 interface RecommendationBoardProps {
   recommendations?: CampaignRecommendation[]; // Optional for backward compatibility

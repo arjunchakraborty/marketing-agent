@@ -76,10 +76,12 @@ class ImageAnalysisService:
 
         image_id = str(uuid.uuid4())
 
-        # Email feature detection (currently disabled)
+        # Run feature detection when explicitly requested or when campaign context
+        # is present, so campaign-linked analyses still include structural signals.
         email_features = []
         feature_catalog = {}
-        if use_feature_detection:
+        should_detect_features = use_feature_detection or bool(campaign_id or campaign_name)
+        if should_detect_features:
             if self.feature_detector:
                 try:
                     feature_result = self.feature_detector.detect_features(
