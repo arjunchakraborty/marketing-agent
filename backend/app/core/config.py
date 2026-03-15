@@ -3,7 +3,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional, Sequence
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Load .env from backend root (backend/.env) or app/core; missing file is ignored (e.g. on Vercel)
@@ -28,8 +28,12 @@ class Settings(BaseSettings):
     analytics_schema: str = "analytics"
     ingestion_data_root: str = "/Users/kerrief/projects/mappe/data"
 
-    # MongoDB (replaces PostgreSQL for document/NoSQL storage)
-    mongodb_uri: str = Field(default="mongodb://localhost:27017", description="MongoDB connection URI (use Atlas SRV for Atlas)")
+    # MongoDB (replaces PostgreSQL for document/NoSQL storage). On Vercel, set VERCEL_MONGODB_URI.
+    mongodb_uri: str = Field(
+        default="mongodb://localhost:27017",
+        description="MongoDB connection URI (use Atlas SRV for Atlas)",
+        validation_alias=AliasChoices("VERCEL_MONGODB_URI", "MONGODB_URI"),
+    )
     mongodb_database: str = Field(default="marketing_agent", description="MongoDB database name")
     use_mongodb: bool = Field(default=False, description="Use MongoDB for document storage instead of PostgreSQL/SQLite")
 
