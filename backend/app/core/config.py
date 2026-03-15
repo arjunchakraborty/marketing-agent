@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     use_mongodb: bool = Field(default=False, description="Use MongoDB for document storage instead of PostgreSQL/SQLite")
 
     # Env read as string (comma-separated); parsed to list via computed field to avoid JSON parse errors
-    _allowed_origins_env: str = Field(
+    allowed_origins_env: str = Field(
         default="http://localhost:3000,http://localhost:2222",
         description="CORS allowed origins, comma-separated.",
         validation_alias=AliasChoices("ALLOWED_ORIGINS"),
@@ -47,12 +47,12 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def allowed_origins(self) -> List[str]:
-        if not self._allowed_origins_env or not self._allowed_origins_env.strip():
+        if not self.allowed_origins_env or not self.allowed_origins_env.strip():
             return ["http://localhost:3000", "http://localhost:2222"]
-        return [o.strip() for o in self._allowed_origins_env.split(",") if o.strip()]
+        return [o.strip() for o in self.allowed_origins_env.split(",") if o.strip()]
 
     # Security Configuration (env read as string to support comma-separated list; parsed to list via computed field)
-    _api_keys_env: str = Field(
+    api_keys_env: str = Field(
         default="",
         description="API keys: set API_KEYS env var as comma-separated list (e.g. key1,key2). Empty = auth disabled.",
         validation_alias=AliasChoices("API_KEYS"),
@@ -61,9 +61,9 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def api_keys(self) -> List[str]:
-        if not self._api_keys_env or not self._api_keys_env.strip():
+        if not self.api_keys_env or not self.api_keys_env.strip():
             return []
-        return [k.strip() for k in self._api_keys_env.split(",") if k.strip()]
+        return [k.strip() for k in self.api_keys_env.split(",") if k.strip()]
 
     # LLM Configuration
     openai_api_key: str = Field(default="", description="OpenAI API key for LLM workflows")
