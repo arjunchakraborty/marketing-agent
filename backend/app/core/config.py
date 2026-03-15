@@ -3,7 +3,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional, Sequence
 
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import AliasChoices, Field, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Load .env from backend root (backend/.env) or app/core; missing file is ignored (e.g. on Vercel)
@@ -37,15 +37,33 @@ class Settings(BaseSettings):
     mongodb_database: str = Field(default="marketing_agent", description="MongoDB database name")
     use_mongodb: bool = Field(default=False, description="Use MongoDB for document storage instead of PostgreSQL/SQLite")
 
-    allowed_origins: List[str] = Field(
-        default_factory=lambda: ["http://localhost:3000", "http://localhost:2222"]
+    # Env read as string (comma-separated); parsed to list via computed field to avoid JSON parse errors
+    _allowed_origins_env: str = Field(
+        default="http://localhost:3000,http://localhost:2222",
+        description="CORS allowed origins, comma-separated.",
+        validation_alias=AliasChoices("ALLOWED_ORIGINS"),
     )
 
-    # Security Configuration
-    api_keys: List[str] = Field(
-        default_factory=list,
-        description="List of valid API keys for authentication. Set via API_KEYS env var as comma-separated list. If empty, authentication is disabled (development mode)."
+    @computed_field
+    @property
+    def allowed_origins(self) -> List[str]:
+        if not self._allowed_origins_env or not self._allowed_origins_env.strip():
+            return ["http://localhost:3000", "http://localhost:2222"]
+        return [o.strip() for o in self._allowed_origins_env.split(",") if o.strip()]
+
+    # Security Configuration (env read as string to support comma-separated list; parsed to list via computed field)
+    _api_keys_env: str = Field(
+        default="",
+        description="API keys: set API_KEYS env var as comma-separated list (e.g. key1,key2). Empty = auth disabled.",
+        validation_alias=AliasChoices("API_KEYS"),
     )
+
+    @computed_field
+    @property
+    def api_keys(self) -> List[str]:
+        if not self._api_keys_env or not self._api_keys_env.strip():
+            return []
+        return [k.strip() for k in self._api_keys_env.split(",") if k.strip()]
 
     # LLM Configuration
     openai_api_key: str = Field(default="", description="OpenAI API key for LLM workflows")
@@ -84,15 +102,6 @@ class Settings(BaseSettings):
     @field_validator("allowed_origins", mode="before")
     @classmethod
     def _coerce_allowed_origins(cls, value: Sequence[str] | str) -> List[str]:
-        if isinstance(value, str):
-            return [item.strip() for item in value.split(",") if item.strip()]
-        return list(value)
-
-    @field_validator("api_keys", mode="before")
-    @classmethod
-    def _coerce_api_keys(cls, value: Sequence[str] | str | None) -> List[str]:
-        if value is None:
-            return []
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return list(value)
