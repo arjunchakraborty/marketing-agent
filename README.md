@@ -278,6 +278,8 @@ The FastAPI backend can run as a serverless app on Vercel.
 
 The API will be available at `https://<your-project>.vercel.app/api` (e.g. `/api/v1/health`). Point the frontend’s `NEXT_PUBLIC_API_BASE` to this URL.
 
+**Dependencies:** Vercel uses `backend/requirements.txt`, which is a minimal set (no torch, chromadb, etc.) to stay under the serverless bundle limit. For full local features (ChromaDB, image analysis), run `pip install -r requirements-full.txt` from the `backend` directory.
+
 ## Development Roadmap
 
 The `agent-spec.md` document captures the full roadmap. Immediate focus areas:

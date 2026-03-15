@@ -5,13 +5,19 @@ import base64
 import json
 import logging
 from io import BytesIO
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import httpx
-import numpy as np
-from PIL import Image
 
 from ..core.config import settings
+
+if TYPE_CHECKING:
+    from PIL import Image
+
+try:
+    from PIL import Image
+except ImportError:
+    Image = None  # type: ignore[misc, assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -113,8 +119,10 @@ class EmailFeatureDetector:
         image_url: Optional[str] = None,
         image_base64: Optional[str] = None,
         image_path: Optional[str] = None,
-    ) -> Optional[Image.Image]:
-        """Load image from URL, base64, or file path."""
+    ) -> Optional[Any]:
+        """Load image from URL, base64, or file path. Returns None if PIL is not installed."""
+        if Image is None:
+            return None
         try:
             if image_path:
                 return Image.open(image_path).convert("RGB")
@@ -133,7 +141,7 @@ class EmailFeatureDetector:
             logger.error(f"Failed to load image: {str(e)}")
             return None
 
-    def _detect_with_model(self, image: Image.Image, prompts: List[str]) -> List[Dict[str, Any]]:
+    def _detect_with_model(self, image: Any, prompts: List[str]) -> List[Dict[str, Any]]:
         """Detect features using model (currently unused - feature detection disabled)."""
         try:
             # Convert PIL image to format expected by model
@@ -163,13 +171,13 @@ class EmailFeatureDetector:
             logger.error(f"Model detection failed: {str(e)}", exc_info=True)
             raise
 
-    def _detect_with_direct_model(self, image: Image.Image, prompts: List[str]) -> List[Dict[str, Any]]:
+    def _detect_with_direct_model(self, image: Any, prompts: List[str]) -> List[Dict[str, Any]]:
         """Detect features using direct model (currently unused - feature detection disabled)."""
         # This method is not currently used as feature detection is disabled
         logger.debug("Direct model detection not used (feature detection disabled)")
         return []
 
-    def _detect_with_api(self, image: Image.Image, prompts: List[str]) -> List[Dict[str, Any]]:
+    def _detect_with_api(self, image: Any, prompts: List[str]) -> List[Dict[str, Any]]:
         """
         Fallback detection using LLM-based analysis (currently unused - feature detection disabled).
         Uses vision models to detect features based on prompts.

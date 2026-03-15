@@ -1,0 +1,12 @@
+# Full dependencies for local development (vector DB, image analysis, ML).
+# Vercel uses requirements.txt (minimal) only.
+
+-r requirements.txt
+numpy
+scikit-learn
+pillow
+chromadb
+# Optional: uncomment for local image/embedding models (very large, not for Vercel)
+# torch
+# torchvision
+# transformers

@@ -7,8 +7,6 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-from numpy import true_divide
-
 from ..services.vector_db_service import get_vector_db_service
 
 logger = logging.getLogger(__name__)

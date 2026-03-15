@@ -199,95 +199,95 @@ def ingest_klaviyo_csv(
     else:
         with work_engine.begin() as connection:
             for _, row in df.iterrows():
-            try:
-                # Extract campaign_id (required)
-                campaign_id = str(row.get("campaign_id", "")).strip()
-                if not campaign_id:
-                    # Try to generate from campaign_name if available
-                    campaign_name = str(row.get("campaign_name", "")).strip()
-                    if campaign_name:
-                        campaign_id = _normalize_identifier(campaign_name)
+                try:
+                    # Extract campaign_id (required)
+                    campaign_id = str(row.get("campaign_id", "")).strip()
+                    if not campaign_id:
+                        # Try to generate from campaign_name if available
+                        campaign_name = str(row.get("campaign_name", "")).strip()
+                        if campaign_name:
+                            campaign_id = _normalize_identifier(campaign_name)
+                        else:
+                            errors.append(f"Row {len(errors) + 1}: Missing campaign_id and campaign_name")
+                            continue
+
+                    # Prepare data
+                    campaign_data = {
+                        "campaign_id": campaign_id,
+                        "campaign_name": str(row.get("campaign_name", "")).strip() or None,
+                        "subject": str(row.get("subject", "")).strip() or None,
+                        "sent_at": str(row.get("sent_at", "")).strip() or None,
+                        "sent_count": int(row.get("sent_count", 0)) if pd.notna(row.get("sent_count")) else 0,
+                        "delivered_count": int(row.get("delivered_count", 0)) if pd.notna(row.get("delivered_count")) else 0,
+                        "bounced_count": int(row.get("bounced_count", 0)) if pd.notna(row.get("bounced_count")) else 0,
+                        "opened_count": int(row.get("opened_count", 0)) if pd.notna(row.get("opened_count")) else 0,
+                        "clicked_count": int(row.get("clicked_count", 0)) if pd.notna(row.get("clicked_count")) else 0,
+                        "converted_count": int(row.get("converted_count", 0)) if pd.notna(row.get("converted_count")) else 0,
+                        "revenue": float(row.get("revenue", 0.0)) if pd.notna(row.get("revenue")) else 0.0,
+                        "open_rate": float(row.get("open_rate", 0.0)) if pd.notna(row.get("open_rate")) else None,
+                        "click_rate": float(row.get("click_rate", 0.0)) if pd.notna(row.get("click_rate")) else None,
+                        "conversion_rate": float(row.get("conversion_rate", 0.0)) if pd.notna(row.get("conversion_rate")) else None,
+                        "unsubscribed_count": int(row.get("unsubscribed_count", 0)) if pd.notna(row.get("unsubscribed_count")) else 0,
+                        "spam_count": int(row.get("spam_count", 0)) if pd.notna(row.get("spam_count")) else 0,
+                        "products": json.dumps(row.get("products", [])) if "products" in row and pd.notna(row.get("products")) else None,
+                        "created_at": now,
+                        "updated_at": now,
+                    }
+
+                    # Check if campaign exists
+                    check_query = text("SELECT campaign_id FROM campaigns WHERE campaign_id = :campaign_id")
+                    existing = connection.execute(check_query, {"campaign_id": campaign_id}).fetchone()
+
+                    if existing:
+                        # Update existing campaign
+                        update_query = text("""
+                            UPDATE campaigns SET
+                                campaign_name = :campaign_name,
+                                subject = :subject,
+                                sent_at = :sent_at,
+                                sent_count = :sent_count,
+                                delivered_count = :delivered_count,
+                                bounced_count = :bounced_count,
+                                opened_count = :opened_count,
+                                clicked_count = :clicked_count,
+                                converted_count = :converted_count,
+                                revenue = :revenue,
+                                open_rate = :open_rate,
+                                click_rate = :click_rate,
+                                conversion_rate = :conversion_rate,
+                                unsubscribed_count = :unsubscribed_count,
+                                spam_count = :spam_count,
+                                products = :products,
+                                updated_at = :updated_at
+                            WHERE campaign_id = :campaign_id
+                        """)
+                        connection.execute(update_query, campaign_data)
+                        updated_count += 1
                     else:
-                        errors.append(f"Row {len(errors) + 1}: Missing campaign_id and campaign_name")
-                        continue
-                
-                # Prepare data
-                campaign_data = {
-                    "campaign_id": campaign_id,
-                    "campaign_name": str(row.get("campaign_name", "")).strip() or None,
-                    "subject": str(row.get("subject", "")).strip() or None,
-                    "sent_at": str(row.get("sent_at", "")).strip() or None,
-                    "sent_count": int(row.get("sent_count", 0)) if pd.notna(row.get("sent_count")) else 0,
-                    "delivered_count": int(row.get("delivered_count", 0)) if pd.notna(row.get("delivered_count")) else 0,
-                    "bounced_count": int(row.get("bounced_count", 0)) if pd.notna(row.get("bounced_count")) else 0,
-                    "opened_count": int(row.get("opened_count", 0)) if pd.notna(row.get("opened_count")) else 0,
-                    "clicked_count": int(row.get("clicked_count", 0)) if pd.notna(row.get("clicked_count")) else 0,
-                    "converted_count": int(row.get("converted_count", 0)) if pd.notna(row.get("converted_count")) else 0,
-                    "revenue": float(row.get("revenue", 0.0)) if pd.notna(row.get("revenue")) else 0.0,
-                    "open_rate": float(row.get("open_rate", 0.0)) if pd.notna(row.get("open_rate")) else None,
-                    "click_rate": float(row.get("click_rate", 0.0)) if pd.notna(row.get("click_rate")) else None,
-                    "conversion_rate": float(row.get("conversion_rate", 0.0)) if pd.notna(row.get("conversion_rate")) else None,
-                    "unsubscribed_count": int(row.get("unsubscribed_count", 0)) if pd.notna(row.get("unsubscribed_count")) else 0,
-                    "spam_count": int(row.get("spam_count", 0)) if pd.notna(row.get("spam_count")) else 0,
-                    "products": json.dumps(row.get("products", [])) if "products" in row and pd.notna(row.get("products")) else None,
-                    "created_at": now,
-                    "updated_at": now,
-                }
-                
-                # Check if campaign exists
-                check_query = text("SELECT campaign_id FROM campaigns WHERE campaign_id = :campaign_id")
-                existing = connection.execute(check_query, {"campaign_id": campaign_id}).fetchone()
-                
-                if existing:
-                    # Update existing campaign
-                    update_query = text("""
-                        UPDATE campaigns SET
-                            campaign_name = :campaign_name,
-                            subject = :subject,
-                            sent_at = :sent_at,
-                            sent_count = :sent_count,
-                            delivered_count = :delivered_count,
-                            bounced_count = :bounced_count,
-                            opened_count = :opened_count,
-                            clicked_count = :clicked_count,
-                            converted_count = :converted_count,
-                            revenue = :revenue,
-                            open_rate = :open_rate,
-                            click_rate = :click_rate,
-                            conversion_rate = :conversion_rate,
-                            unsubscribed_count = :unsubscribed_count,
-                            spam_count = :spam_count,
-                            products = :products,
-                            updated_at = :updated_at
-                        WHERE campaign_id = :campaign_id
-                    """)
-                    connection.execute(update_query, campaign_data)
-                    updated_count += 1
-                else:
-                    # Insert new campaign
-                    insert_query = text("""
-                        INSERT INTO campaigns (
-                            campaign_id, campaign_name, subject, sent_at,
-                            sent_count, delivered_count, bounced_count,
-                            opened_count, clicked_count, converted_count,
-                            revenue, open_rate, click_rate, conversion_rate,
-                            unsubscribed_count, spam_count, products,
-                            created_at, updated_at
-                        ) VALUES (
-                            :campaign_id, :campaign_name, :subject, :sent_at,
-                            :sent_count, :delivered_count, :bounced_count,
-                            :opened_count, :clicked_count, :converted_count,
-                            :revenue, :open_rate, :click_rate, :conversion_rate,
-                            :unsubscribed_count, :spam_count, :products,
-                            :created_at, :updated_at
-                        )
-                    """)
-                    connection.execute(insert_query, campaign_data)
-                    inserted_count += 1
-                    
-            except Exception as e:
-                errors.append(f"Row {len(errors) + inserted_count + updated_count + 1}: {str(e)}")
-                continue
+                        # Insert new campaign
+                        insert_query = text("""
+                            INSERT INTO campaigns (
+                                campaign_id, campaign_name, subject, sent_at,
+                                sent_count, delivered_count, bounced_count,
+                                opened_count, clicked_count, converted_count,
+                                revenue, open_rate, click_rate, conversion_rate,
+                                unsubscribed_count, spam_count, products,
+                                created_at, updated_at
+                            ) VALUES (
+                                :campaign_id, :campaign_name, :subject, :sent_at,
+                                :sent_count, :delivered_count, :bounced_count,
+                                :opened_count, :clicked_count, :converted_count,
+                                :revenue, :open_rate, :click_rate, :conversion_rate,
+                                :unsubscribed_count, :spam_count, :products,
+                                :created_at, :updated_at
+                            )
+                        """)
+                        connection.execute(insert_query, campaign_data)
+                        inserted_count += 1
+
+                except Exception as e:
+                    errors.append(f"Row {len(errors) + inserted_count + updated_count + 1}: {str(e)}")
+                    continue
     
     # Also register in dataset registry for prompt-to-SQL discovery
     from ..workflows.local_csv_ingestion import _ensure_registry, _record_dataset, IngestedDataset
