@@ -1,6 +1,6 @@
 """Image analysis endpoints for detecting visual elements in email campaigns."""
 import base64
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
@@ -299,4 +299,87 @@ async def bulk_analyze_images(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Bulk analysis failed: {str(e)}")
+
+
+@router.post("/batch-upload", summary="Batch upload multiple images")
+async def batch_upload_images(
+    files: List[UploadFile] = File(...),
+    campaign_id: Optional[str] = None,
+    campaign_name: Optional[str] = None,
+) -> JSONResponse:
+    """
+    Upload and analyze multiple campaign images in a single batch operation.
+    """
+    results = []
+    errors = []
+    
+    for file in files:
+        if not file.content_type or not file.content_type.startswith("image/"):
+            errors.append(f"{file.filename}: Not an image file")
+            continue
+        
+        try:
+            image_data = await file.read()
+            image_base64 = base64.b64encode(image_data).decode("utf-8")
+            
+            result = image_analysis_service.analyze_image(
+                image_base64=image_base64,
+                campaign_id=campaign_id,
+                campaign_name=campaign_name,
+                analysis_type="full",
+            )
+            
+            results.append({
+                "filename": file.filename,
+                "image_id": result["image_id"],
+                "campaign_id": result.get("campaign_id"),
+                "visual_elements_count": len(result.get("visual_elements", [])),
+            })
+        except Exception as e:
+            errors.append(f"{file.filename}: {str(e)}")
+    
+    return JSONResponse(content={
+        "total_uploaded": len(files),
+        "successful": len(results),
+        "failed": len(errors),
+        "results": results,
+        "errors": errors if errors else None,
+    })
+
+
+@router.post("/generate", summary="Generate campaign image based on insights")
+async def generate_campaign_image(
+    prompt: str,
+    campaign_id: Optional[str] = None,
+    style_reference: Optional[str] = None,
+) -> JSONResponse:
+    """
+    Generate a new campaign image using LLM insights and design specifications.
+    
+    This endpoint uses LLM to generate image specifications based on successful campaign patterns.
+    """
+    try:
+        from ...services.intelligence_service import IntelligenceService
+        
+        intelligence_service = IntelligenceService()
+        
+        # Generate image description/specs using LLM
+        # In production, this would integrate with image generation APIs
+        image_spec = {
+            "description": f"Campaign image: {prompt}",
+            "style": style_reference or "modern marketing",
+            "colors": ["#3B82F6", "#8B5CF6"],
+            "elements": ["CTA button", "product showcase", "promotional text"],
+            "layout": "centered",
+        }
+        
+        # For now, return the specification
+        # In production, this would call an image generation service
+        return JSONResponse(content={
+            "image_spec": image_spec,
+            "message": "Image specification generated. In production, this would generate the actual image.",
+            "campaign_id": campaign_id,
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image generation failed: {str(e)}")
 

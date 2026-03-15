@@ -1,0 +1,11 @@
+date,product_id,product_name,quantity,price,revenue,customer_id,customer_segment
+2024-06-15,PROD001,Summer T-Shirt,2,29.99,59.98,CUST001,High Value
+2024-06-15,PROD002,Denim Jeans,1,79.99,79.99,CUST002,Price Sensitive
+2024-06-16,PROD003,Sneakers,1,99.99,99.99,CUST003,Frequent Buyer
+2024-06-16,PROD001,Summer T-Shirt,3,29.99,89.97,CUST004,New Customer
+2024-06-17,PROD004,Backpack,1,49.99,49.99,CUST005,High Value
+2024-06-17,PROD002,Denim Jeans,2,79.99,159.98,CUST001,High Value
+2024-06-18,PROD005,Watch,1,199.99,199.99,CUST006,High Value
+2024-06-18,PROD003,Sneakers,2,99.99,199.98,CUST002,Price Sensitive
+2024-06-19,PROD001,Summer T-Shirt,1,29.99,29.99,CUST007,New Customer
+2024-06-19,PROD004,Backpack,1,49.99,49.99,CUST003,Frequent Buyer

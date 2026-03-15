@@ -7,7 +7,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api.routes import router as api_router
 from .core.config import settings
-from .core.middleware import APIKeyMiddleware
 from .models.kpi_cache import ensure_cache_tables
 from .db.session import engine
 
@@ -24,7 +23,7 @@ def setup_logging():
         "ERROR": logging.ERROR,
         "CRITICAL": logging.CRITICAL,
     }
-    root_level = log_level_map.get(settings.log_level.upper(), logging.DEBUG)
+    root_level = log_level_map.get(settings.log_level.upper(), logging.INFO)
     
     # Create formatter
     formatter = logging.Formatter(
@@ -73,6 +72,8 @@ def create_app() -> FastAPI:
 
     # Ensure localhost variants are included for development
     origins = list(settings.allowed_origins)
+    if "http://localhost:2222" in origins and "http://127.0.0.1:2222" not in origins:
+        origins.append("http://127.0.0.1:2222")
     if "http://localhost:3000" in origins and "http://127.0.0.1:3000" not in origins:
         origins.append("http://127.0.0.1:3000")
 
@@ -84,9 +85,6 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
         expose_headers=["*"],
     )
-    
-    # Add API key authentication middleware (after CORS to allow OPTIONS requests)
-    app.add_middleware(APIKeyMiddleware)
 
     app.include_router(api_router, prefix=settings.api_prefix)
 

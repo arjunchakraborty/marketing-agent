@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Marketing Intelligence Control Center",
   description:
-    "TripleWhale-inspired analytics, ingestion, and campaign orchestration interface for the marketing agent stack.",
+    "Analytics, ingestion, and campaign orchestration interface for the marketing agent stack.",
 };
 
 export default function RootLayout({

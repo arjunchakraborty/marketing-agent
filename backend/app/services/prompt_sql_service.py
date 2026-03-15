@@ -30,16 +30,27 @@ class PromptToSqlService:
         ensure_prompt_sql_cache_table(self.engine)
         self.use_llm = use_llm if use_llm is not None else settings.use_llm_for_sql
         self.llm_service: Optional[LLMService] = None
+        self.llm_providers: List[str] = []
         if self.use_llm:
-            # Try providers in order: configured default, then ollama (local), then openai, then anthropic
-            providers_to_try = [settings.default_llm_provider]
-            if settings.default_llm_provider != "ollama":
-                providers_to_try.append("ollama")
-            if settings.default_llm_provider != "openai" and settings.openai_api_key:
+            # Priority order: Ollama (local Qwen) first, then OpenAI, then Anthropic
+            # This allows using local models first, falling back to cloud providers
+            providers_to_try = []
+            
+            # Always try Ollama first (for local models like Qwen)
+            providers_to_try.append("ollama")
+            
+            # Then try OpenAI if API key is configured
+            if settings.openai_api_key:
                 providers_to_try.append("openai")
-            if settings.default_llm_provider != "anthropic" and settings.anthropic_api_key:
+            
+            # Finally try Anthropic if API key is configured
+            if settings.anthropic_api_key:
                 providers_to_try.append("anthropic")
-
+            
+            # Store the provider list for fallback logic
+            self.llm_providers = providers_to_try
+            
+            # Try to initialize the first available provider
             for provider in providers_to_try:
                 try:
                     self.llm_service = LLMService(provider=provider)
@@ -272,8 +283,49 @@ class PromptToSqlService:
         if not datasets:
             raise ValueError("No datasets have been ingested yet.")
 
-        if self.use_llm and self.llm_service:
-            return self._execute_prompt_llm(prompt, datasets)
+        if self.use_llm and self.llm_providers:
+            # Try each provider in order until one succeeds
+            last_error = None
+            for provider in self.llm_providers:
+                try:
+                    # Initialize or reinitialize LLM service with this provider
+                    self.llm_service = LLMService(provider=provider)
+                    return self._execute_prompt_llm(prompt, datasets)
+                except (ValueError, RuntimeError, Exception) as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    error_msg = str(e)
+                    last_error = e
+                    
+                    # Log the attempt and continue to next provider
+                    logger.info(f"Provider {provider} failed: {error_msg}, trying next provider...")
+                    
+                    # If it's a configuration error (API key missing), continue to next provider
+                    if "API key not configured" in error_msg or "not installed" in error_msg:
+                        continue
+                    # If it's an Ollama connection error, try next provider
+                    if "Ollama" in error_msg and ("connection" in error_msg.lower() or "timeout" in error_msg.lower()):
+                        continue
+                    # For other errors, continue trying providers
+                    continue
+            
+            # If all LLM providers failed, fall back to heuristic mode
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"All LLM providers failed. Last error: {str(last_error)}. Falling back to heuristic mode.")
+            return self._execute_prompt_heuristic(prompt, datasets)
+        elif self.use_llm and self.llm_service:
+            # Single provider mode (backward compatibility)
+            try:
+                return self._execute_prompt_llm(prompt, datasets)
+            except (ValueError, Exception) as e:
+                error_msg = str(e)
+                if "API key not configured" in error_msg or "not installed" in error_msg:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"LLM unavailable ({error_msg}), falling back to heuristic mode")
+                    return self._execute_prompt_heuristic(prompt, datasets)
+                raise
         else:
             return self._execute_prompt_heuristic(prompt, datasets)
 

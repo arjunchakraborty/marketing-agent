@@ -1,56 +1,65 @@
-"""Schemas for email campaign generation."""
-from datetime import datetime
-from typing import Dict, List, Optional
+"""Schemas for campaign targeting endpoints."""
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
 
-class EmailCampaignGenerationRequest(BaseModel):
-    """Request to generate a new email campaign."""
-    experiment_run_id: Optional[str] = Field(None, description="If set, fetch this experiment's details and associated product (text + image) and generate from that only; no campaign search.")
-    campaign_name: Optional[str] = Field(None, description="Name for the campaign")
-    objective: str = Field(..., description="Campaign objective (e.g., 'Increase sales', 'Promote new product', 'Re-engage customers')")
-    audience_segment: Optional[str] = Field(None, description="Target audience segment")
-    products: Optional[List[str]] = Field(None, description="Products to promote in the campaign")
-    product_context: Optional[str] = Field(None, description="Product names and descriptions to incorporate into hero image, CTA, and key message prompts (in addition to RAG)")
-    product_images: Optional[List[str]] = Field(None, description="URLs or paths to product images")
-    tone: Optional[str] = Field("professional", description="Email tone (e.g., 'professional', 'casual', 'urgent', 'friendly')")
-    key_message: Optional[str] = Field(None, description="Key message or value proposition")
-    call_to_action: Optional[str] = Field(None, description="Desired call-to-action text")
-    include_promotion: bool = Field(False, description="Whether to include promotional offers")
-    promotion_details: Optional[str] = Field(None, description="Details about the promotion (discount, offer, etc.)")
-    subject_line_suggestions: int = Field(3, description="Number of subject line variations to generate")
-    include_preview_text: bool = Field(True, description="Whether to generate preview text")
-    design_guidance: Optional[str] = Field(None, description="Design preferences or constraints")
-    use_past_campaigns: bool = Field(True, description="Use RAG to retrieve insights from past successful campaigns")
-    num_similar_campaigns: int = Field(5, description="Number of similar past campaigns to retrieve for reference")
-    generate_hero_image: bool = Field(False, description="Generate a new hero image using AI")
-    hero_image_prompt: Optional[str] = Field(None, description="Custom prompt for hero image generation")
+class AudienceSegment(BaseModel):
+    """Audience segment definition."""
+    
+    segment_id: str = Field(..., description="Unique segment identifier")
+    name: str = Field(..., description="Segment name")
+    description: Optional[str] = Field(None, description="Segment description")
+    criteria: Dict[str, Any] = Field(..., description="Targeting criteria")
+    size: Optional[int] = Field(None, description="Estimated segment size")
 
 
-class EmailContent(BaseModel):
-    """Email content components (internal use; stored in DB)."""
-    subject_line: str
-    preview_text: Optional[str] = None
-    greeting: str
-    body: str
-    call_to_action: str
-    closing: str
-    footer: Optional[str] = None
-    html_template: Optional[str] = Field(None, description="Complete HTML email template")
-    hero_image_url: Optional[str] = Field(None, description="URL or path to hero image")
-    product_image_urls: Optional[List[str]] = Field(None, description="URLs or paths to product images")
+class TargetCampaignRequest(BaseModel):
+    """Request schema for creating a targeted campaign."""
+    
+    campaign_name: str = Field(..., description="Campaign name")
+    segment_ids: List[str] = Field(..., description="List of audience segment IDs to target")
+    channel: str = Field("email", description="Campaign channel (email, sms, etc.)")
+    objective: str = Field(..., description="Campaign objective")
+    constraints: Optional[Dict[str, Any]] = Field(None, description="Additional targeting constraints")
+    products: Optional[List[str]] = Field(None, description="Products to promote")
+    product_images: Optional[List[Dict[str, str]]] = Field(None, description="Product images with URLs and product IDs")
 
 
-class EmailCampaignResponse(BaseModel):
-    """Response with generated email campaign: just the generated HTML email."""
-    campaign_id: str
-    campaign_name: str
-    html_email: str = Field(..., description="Generated HTML email content")
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+class TargetCampaignResponse(BaseModel):
+    """Response schema for targeted campaign creation."""
+    
+    campaign_id: str = Field(..., description="Created campaign ID")
+    campaign_name: str = Field(..., description="Campaign name")
+    segments: List[AudienceSegment] = Field(..., description="Targeted segments")
+    estimated_reach: int = Field(..., description="Estimated audience reach")
+    status: str = Field(..., description="Campaign status")
+    created_at: str = Field(..., description="Creation timestamp")
+    product_images: Optional[List[Dict[str, str]]] = Field(None, description="Product images associated with campaign")
 
 
-class EmailCampaignsListResponse(BaseModel):
-    """Response with list of generated campaigns."""
-    campaigns: List[EmailCampaignResponse]
-    total: int
+class TargetingAnalysisRequest(BaseModel):
+    """Request schema for analyzing targeting effectiveness."""
+    
+    campaign_id: Optional[str] = Field(None, description="Campaign ID to analyze")
+    segment_ids: Optional[List[str]] = Field(None, description="Segments to analyze")
+    date_range: Optional[Dict[str, str]] = Field(None, description="Date range for analysis")
+
+
+class TargetingAnalysisResponse(BaseModel):
+    """Response schema for targeting analysis."""
+    
+    campaign_id: Optional[str] = Field(None, description="Analyzed campaign ID")
+    segment_performance: List[Dict[str, Any]] = Field(..., description="Performance by segment")
+    recommendations: List[str] = Field(..., description="Optimization recommendations")
+    summary: str = Field(..., description="Analysis summary")
+
+
+class CampaignPerformanceResponse(BaseModel):
+    """Response schema for campaign performance by segment."""
+    
+    campaign_id: str = Field(..., description="Campaign ID")
+    overall_performance: Dict[str, Any] = Field(..., description="Overall campaign metrics")
+    segment_performance: List[Dict[str, Any]] = Field(..., description="Performance breakdown by segment")
+    top_performing_segments: List[str] = Field(..., description="Top performing segment IDs")
+

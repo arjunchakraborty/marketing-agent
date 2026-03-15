@@ -1,0 +1,11 @@
+Campaign ID,Campaign Name,Subject,Send Time,Total Recipients,Unique Opens,Open Rate,Unique Clicks,Click Rate,Unique Placed Order,Placed Order Rate,Revenue,Unsubscribes,Spam Complaints
+CAMP001,Summer Sale 2024,Summer Sale - 50% Off Everything,2024-06-15 10:00:00,5000,2250,0.45,450,0.09,125,0.025,12500.0,5,2
+CAMP002,New Product Launch,Introducing Our Latest Collection,2024-06-20 14:30:00,8000,3600,0.45,720,0.09,200,0.025,25000.0,8,1
+CAMP003,Flash Sale,24-Hour Flash Sale - Don't Miss Out!,2024-06-25 09:00:00,12000,6000,0.5,1800,0.15,480,0.04,60000.0,12,3
+CAMP004,Abandoned Cart,You Left Something Behind,2024-07-01 11:00:00,3000,1200,0.4,360,0.12,180,0.06,9000.0,3,0
+CAMP005,Weekly Newsletter,This Week's Best Deals,2024-07-05 08:00:00,15000,6000,0.4,900,0.06,150,0.01,15000.0,15,2
+CAMP006,Back to School,Back to School Essentials,2024-07-10 10:00:00,10000,4500,0.45,900,0.09,250,0.025,25000.0,10,1
+CAMP007,Member Exclusive,Exclusive Member Discount,2024-07-15 12:00:00,5000,2500,0.5,750,0.15,300,0.06,30000.0,2,0
+CAMP008,Product Recommendation,Products You Might Like,2024-07-20 16:00:00,7000,2800,0.4,560,0.08,140,0.02,14000.0,7,1
+CAMP009,Seasonal Promotion,Fall Collection Preview,2024-07-25 10:00:00,9000,4050,0.45,810,0.09,225,0.025,22500.0,9,2
+CAMP010,Clearance Sale,Final Clearance - Up to 70% Off,2024-07-30 09:00:00,11000,5500,0.5,1650,0.15,550,0.05,55000.0,11,3

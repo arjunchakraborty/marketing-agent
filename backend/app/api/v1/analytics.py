@@ -47,8 +47,15 @@ async def run_cohort(payload: CohortAnalysisRequest) -> CohortAnalysisResponse:
 @router.post("/prompt-sql", response_model=PromptToSqlResponse, summary="Generate SQL from natural language")
 async def prompt_sql(payload: PromptToSqlRequest) -> PromptToSqlResponse:
     """Generate and execute SQL for the provided prompt."""
-    result = prompt_sql_service.execute_prompt(payload.prompt)
-    return PromptToSqlResponse(**result)
+    try:
+        result = prompt_sql_service.execute_prompt(payload.prompt)
+        return PromptToSqlResponse(**result)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.exception(f"Prompt-to-SQL failed: {str(e)}")
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=f"Failed to generate SQL: {str(e)}")
 
 
 @router.get("/kpi/precomputed", response_model=PrecomputedKpiListResponse, summary="List precomputed KPIs")

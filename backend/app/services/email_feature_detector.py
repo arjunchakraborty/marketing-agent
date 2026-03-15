@@ -7,7 +7,9 @@ import logging
 from io import BytesIO
 from typing import Any, Dict, List, Optional
 
-
+import httpx
+import numpy as np
+from PIL import Image
 
 from ..core.config import settings
 

@@ -15,289 +15,239 @@ strategy-agent-spec.md  Supplemental strategy guidance for future milestones
 
 ### Prerequisites
 
-- Python 3.11+ (Python 3.12+ required for ChromaDB vector search)
+- Python 3.11+
 - Node.js 20+
 - npm (bundled with Node.js)
 - PostgreSQL (local or container) if you plan to wire up persistence
-- **ChromaDB** (optional, for vector search) - **Requires Python 3.12+**. See installation instructions below. The app can run without it, but vector search features will be unavailable.
+- **ChromaDB** (for vector search) - automatically installed with backend dependencies
 - **Ollama** (optional, for local LLM) - https://ollama.ai - install if using local LLM instead of OpenAI/Anthropic
 
 ### Backend Setup
 
 **Important:** Always run backend commands from the `backend` directory to ensure Python can find the `app` module.
 
-**If using ChromaDB (vector search):** You need Python 3.12+. Install it first, then create the virtual environment:
-
 ```bash
-# Check Python version (should be 3.12+ for ChromaDB)
-python3.12 --version
-
-# If Python 3.12 is not available, install it first:
-# macOS: brew install python@3.12
-# Linux: Use your distribution's package manager
-# Or download from: https://www.python.org/downloads/
-
-cd backend
-mkdir -p storage
-python3.12 -m venv .venv  # Creates .venv with Python 3.12
-source .venv/bin/activate  # Activate the virtual environment
-pip install -e '.[dev]'  # This installs all dependencies including chromadb
-
-# Initialize SQLite database
-python scripts/init_database.py
-
-# Initialize ChromaDB (optional, for vector search)
-python scripts/init_chromadb.py
-
+cd /Users/kerrief/projects/marketing-agent/backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .[dev]
 uvicorn app.main:app --reload
 ```
-
-**If NOT using ChromaDB:** Python 3.11+ is sufficient:
-
-```bash
-cd backend
-mkdir -p storage
-python -m venv .venv  # Creates .venv in the backend directory
-source .venv/bin/activate  # Activate the virtual environment
-pip install -e '.[dev]'  # This installs all dependencies (ChromaDB will fail but app will work)
-
-# Initialize SQLite database
-python scripts/init_database.py
-
-uvicorn app.main:app --reload
-```
-
-**Important:** Make sure your virtual environment is activated (you should see `(.venv)` in your terminal prompt) before running the app. 
-
-**If you see "ChromaDB not available" error:**
-
-The error message will now show the actual exception type and details. Common causes:
-
-1. **Python version too old** - ChromaDB requires Python 3.12+:
-   ```bash
-   python --version  # Should show Python 3.12.x or higher
-   # If not, install Python 3.12 and recreate venv:
-   python3.12 -m venv .venv
-   source .venv/bin/activate
-   pip install -e '.[dev]'
-   ```
-
-2. **Python environment mismatch** - uvicorn might be using a different Python than your venv:
-   ```bash
-   which python  # Should show: backend/.venv/bin/python
-   python --version  # Should show Python 3.12.x
-   echo $VIRTUAL_ENV  # Should show: backend/.venv
-   # Make sure uvicorn uses the venv Python:
-   which uvicorn  # Should also point to venv
-   ```
-
-3. **Verify ChromaDB can be imported directly:**
-   ```bash
-   python -c "import chromadb; print(chromadb.__version__)"
-   ```
-   If this fails, check Python version first (must be 3.12+).
-
-4. **Check the actual error message** - The startup logs will show the exception type (e.g., `ImportError`, `ModuleNotFoundError`, `AttributeError`). This helps diagnose the root cause.
-
-5. **Reinstall ChromaDB if needed (with Python 3.12):**
-   ```bash
-   pip install chromadb --force-reinstall
-   # Or reinstall all dependencies:
-   pip install -e '.[dev]' --force-reinstall --no-cache-dir
-   ```
-
-**Directory Structure:**
-- `.venv/` - Virtual environment (created in `backend/` directory)
-- `storage/` - Data storage directory for databases and files
-  - `storage/marketing_agent.db` - SQLite database (created by `init_database.py`)
-  - `storage/vectors/` - ChromaDB vector database (created by `init_chromadb.py`)
 
 **Note:** If you encounter `ModuleNotFoundError: No module named 'app'`, make sure you're running commands from the `backend` directory. The `app` module must be in Python's import path.
 
-#### Database Initialization
+#### ChromaDB Setup (for Vector Search)
 
-The SQLite database needs to be initialized before first use. Run:
+ChromaDB is automatically installed with the backend dependencies. To enable vector search:
 
+1. **Pull the embedding model** (if using Ollama for embeddings):
+   ```bash
+   ollama pull nomic-embed-text
+   ```
+
+2. **Enable in configuration** - Add to `backend/.env`:
+   ```env
+   ENABLE_VECTOR_SEARCH=true
+   VECTOR_DB_PATH=storage/vectors
+   OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+   ```
+
+The vector database will be automatically created at `backend/storage/vectors` on first use. See the [Vector Search Setup](#vector-search-setup-chromadb) section below for more details.
+
+#### Ingest local CSV data
+
+Point the backend at the provided marketing data directory (default is `/Users/kerrief/projects/mappe/data`) and trigger ingestion:
+
+**Via Python module (from backend directory):**
 ```bash
-cd backend
+cd /Users/kerrief/projects/marketing-agent/backend
 source .venv/bin/activate
-python scripts/init_database.py
+python -m app.workflows.local_csv_ingestion
 ```
 
-**Troubleshooting "Failed to import encodings module" error:**
-
-This error usually means the virtual environment is corrupted. Recreate it:
-
-**Quick fix (recommended):**
+**Alternative (using PYTHONPATH):**
 ```bash
-cd backend
-bash scripts/fix_venv.sh
+cd /Users/kerrief/projects/marketing-agent
+source backend/.venv/bin/activate
+PYTHONPATH=backend python -m app.workflows.local_csv_ingestion
 ```
 
-**Manual fix:**
-```bash
-cd backend
-# Remove the corrupted venv
-rm -rf .venv
-
-# Recreate with Python 3.12
-python3.12 -m venv .venv
-source .venv/bin/activate
-
-# Upgrade pip and install dependencies
-pip install --upgrade pip setuptools wheel
-pip install -e '.[dev]'
-
-# Now try again
-python scripts/init_database.py
-```
-
-This creates all required tables:
-- Cache tables (KPI precomputed, prompt-to-SQL cache)
-- Campaign analysis tables (campaign_analysis, image_analysis_results, etc.)
-- Campaigns table (for Klaviyo data)
-- Dataset registry (for CSV ingestion)
-- Email campaigns table (for campaign generation)
-
-**Options:**
-- List existing tables: `python scripts/init_database.py --list`
-- Overwrite existing database (WARNING: deletes all data): `python scripts/init_database.py --overwrite`
-
-#### ChromaDB Installation (Optional)
-
-**Important:** ChromaDB requires Python 3.12+. Make sure you have Python 3.12 installed and activated before installing ChromaDB.
-
-ChromaDB is included in the project dependencies (`pyproject.toml`) and should be installed automatically when you run `pip install -e '.[dev]'` **with Python 3.12**. **ChromaDB is optional** - the app will start and run without it, but vector search features will be unavailable.
-
-**Setup steps for ChromaDB:**
-
-1. **Install Python 3.12** (if not already installed):
-   ```bash
-   # macOS
-   brew install python@3.12
-   
-   # Linux (Ubuntu/Debian)
-   sudo apt-get install python3.12 python3.12-venv
-   
-   # Or download from https://www.python.org/downloads/
-   ```
-
-2. **Create virtual environment with Python 3.12:**
-   ```bash
-   cd backend
-   python3.12 -m venv .venv
-   source .venv/bin/activate
-   pip install -e '.[dev]'  # This will install ChromaDB successfully
-   ```
-
-3. **Initialize ChromaDB (recommended):**
-   ```bash
-   python scripts/init_chromadb.py
-   ```
-
-This creates the default collection `UCO_Gear_Campaigns`. You can also:
-- Use a custom collection name: `python scripts/init_chromadb.py --collection my_campaigns`
-- Overwrite existing collection: `python scripts/init_chromadb.py --overwrite`
-- List all collections: `python scripts/init_chromadb.py --list`
-
-**Note:** ChromaDB will also automatically create the database directory and collections when first used, so initialization is optional but recommended.
-
-If you see "ChromaDB not available" errors when trying to use vector search features, follow these steps:
-
-1. **Ensure virtual environment is activated:**
-   ```bash
-   cd backend
-   source .venv/bin/activate
-   # You should see (.venv) in your prompt
-   ```
-
-2. **Install ChromaDB explicitly:**
-   ```bash
-   pip install chromadb
-   ```
-
-3. **Verify installation:**
-   ```bash
-   python -c "import chromadb; print(f'ChromaDB version: {chromadb.__version__}')"
-   ```
-
-4. **If still not working, reinstall all dependencies:**
-   ```bash
-   pip install -e '.[dev]' --force-reinstall --no-cache-dir
-   ```
-
-**Note:** The "requirement already met" message often means ChromaDB is installed in a different Python environment (system Python instead of your venv). Always activate the virtual environment before installing packages or running the app.
-
-If you plan to use Ollama for embeddings, you'll also need to pull the embedding model:
+**Via API:**
 
 ```bash
-ollama pull nomic-embed-text
+curl -X POST http://localhost:8000/api/v1/ingestion/csv \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dataset_name": "initial_bootstrap",
+    "file_path": "/Users/kerrief/projects/mappe/data"
+  }'
 ```
 
-### Frontend Setup
+This loads all CSVs into the SQLite database in `backend/storage/marketing_agent.db` and registers metadata for Prompt-to-SQL exploration.
+
+#### Import Klaviyo Campaign Data
+
+The system includes specialized workflows for importing and analyzing Klaviyo campaign data. This includes both campaign metrics (CSV) and campaign images.
+
+**1. Import Klaviyo Campaign CSV**
+
+The CSV file should contain campaign metrics with columns like:
+- `Campaign ID`, `Campaign Name`, `Subject`
+- `Send Time`, `Total Recipients`
+- `Unique Opens`, `Open Rate`, `Unique Clicks`, `Click Rate`
+- `Unique Placed Order`, `Placed Order Rate`, `Revenue`
+- `Unsubscribes`, `Spam Complaints`
+
+Column names are automatically normalized, so variations like "Campaign ID" vs "campaign_id" are handled.
+
+**Via API:**
+```bash
+curl -X POST http://localhost:8000/api/v1/ingestion/klaviyo \
+  -H "Content-Type: application/json" \
+  -d '{
+    "file_path": "/Users/kerrief/projects/klyaviyo/Klaviyo Campaigns.csv",
+    "table_name": "campaigns"
+  }'
+```
+
+**Via Python:**
+```bash
+source /Users/kerrief/projects/marketing-agent/backend/.venv/bin/activate
+python -c "
+from app.workflows.klaviyo_ingestion import ingest_klaviyo_csv
+result = ingest_klaviyo_csv('/Users/kerrief/projects/klyaviyo/Klaviyo Campaigns.csv')
+print(f'Imported {result[\"inserted\"]} campaigns, updated {result[\"updated\"]} existing')
+"
+```
+
+This creates a `campaigns` table in the database with normalized columns and calculated metrics.
+
+**3. Import Campaign Data into Vector Database**
+
+After ingesting Klaviyo CSV data and running image analyses, you can import the data into ChromaDB for semantic search:
 
 ```bash
-cd web
-npm install
-npm run dev
+source /Users/kerrief/projects/marketing-agent/backend/.venv/bin/activate
+python backend/scripts/load_klaviyo_to_vector_db.py \
+  --csv /Users/kerrief/projects/marketing-agent/backend/storage/email_campaigns.csv \
+  --image-folder /Users/kerrief/projects/marketing-agent/backend/image-analysis-extract \
+  --collection klaviyo_campaigns \
+  --overwrite
 ```
 
-Navigate to `http://localhost:3000` to explore the TripleWhale-inspired control center.
+**Search for similar campaigns:**
+```bash
+python backend/scripts/load_klaviyo_to_vector_db.py \
+  --search "bright colorful campaigns with high conversion rates" \
+  --n-results 5
+```
 
-### Uploading Campaign Data
+**Run Campaign Strategy Experiment:**
 
-Campaign datasets can be uploaded directly through the web UI:
+The experiment workflow combines SQL queries, image analysis, and visual element correlation:
 
-1. Navigate to `http://localhost:3000`
-2. Use the data upload interface to upload CSV files containing campaign metrics
-3. The system automatically:
-   - Normalizes column names (handles variations like "Campaign ID" vs "campaign_id")
-   - Creates database tables with normalized columns and calculated metrics
-   - Processes campaign images and matches them to campaigns by ID
-   - Analyzes visual elements (colors, composition, text, CTAs)
-   - Correlates visual elements with campaign performance metrics
+**Via API:**
+```bash
+curl -X POST http://localhost:8000/api/v1/experiments/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sql_query": "SELECT campaign_id, campaign_name, open_rate, conversion_rate, revenue FROM campaigns WHERE open_rate > 0.3 ORDER BY conversion_rate DESC LIMIT 20",
+    "image_directory": "/Users/kerrief/projects/klyaviyo",
+    "experiment_name": "Top Performing Campaigns Analysis"
+  }'
+```
 
-**Supported Campaign Data Formats:**
-- Campaign metrics CSV with columns like: `Campaign ID`, `Campaign Name`, `Subject`, `Send Time`, `Total Recipients`, `Unique Opens`, `Open Rate`, `Unique Clicks`, `Click Rate`, `Unique Placed Order`, `Placed Order Rate`, `Revenue`, `Unsubscribes`, `Spam Complaints`
-- Campaign images (automatically matched to campaigns by extracting campaign IDs from filenames)
-
-### Campaign Strategy Analysis
-
-The frontend includes a Campaign Strategy Experiment tool that combines SQL queries, image analysis, and visual element correlation:
-
+**Via Frontend:**
 1. Navigate to `http://localhost:3000` and click "Campaign Strategy" in the navigation
 2. Adjust the SQL query to target specific campaigns (or use natural language prompt)
-3. Upload campaign images if needed
+3. Set the image directory path (default: `/Users/kerrief/projects/klyaviyo`)
 4. Click "Run Campaign Strategy Analysis"
 5. View results in tabs: Campaigns, Image Analysis, Visual Correlations
 
+**Complete Workflow Example:**
+
+```bash
+# Step 1: Import Klaviyo CSV data
+curl -X POST http://localhost:8000/api/v1/ingestion/klaviyo \
+  -H "Content-Type: application/json" \
+  -d '{"file_path": "/Users/kerrief/projects/klyaviyo/Klaviyo Campaigns.csv"}'
+
+# Step 2: Run experiment with SQL query and image analysis
+curl -X POST http://localhost:8000/api/v1/experiments/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sql_query": "SELECT campaign_id, campaign_name, open_rate, click_rate, conversion_rate, revenue FROM campaigns WHERE open_rate > 0.3 OR conversion_rate > 0.01 ORDER BY conversion_rate DESC, revenue DESC LIMIT 20",
+    "image_directory": "/Users/kerrief/projects/klyaviyo",
+    "experiment_name": "High Performance Campaign Analysis"
+  }'
+
+# Step 3: Retrieve experiment results
+curl http://localhost:8000/api/v1/experiments/{experiment_run_id}
+
+# Step 4: Generate new campaigns based on insights
+curl -X POST http://localhost:8000/api/v1/experiments/generate-campaigns \
+  -H "Content-Type: application/json" \
+  -d '{
+    "experiment_run_id": "{experiment_run_id}",
+    "use_top_products": true,
+    "num_campaigns": 5
+  }'
+```
+
+**Expected File Structure:**
+```
+/Users/kerrief/projects/klyaviyo/
+├── Klaviyo Campaigns.csv          # Campaign metrics CSV
+├── www.klaviyo.com_campaign_*.png # Campaign images (with campaign IDs in filenames)
+└── ...
+```
+
 The system automatically:
-- Limits analysis to top 5 performing campaigns
+- Matches images to campaigns by extracting campaign IDs from filenames
 - Analyzes visual elements (colors, composition, text, CTAs)
 - Correlates visual elements with campaign performance metrics
 - Stores all results for future analysis and campaign generation
 
-## Configuration
+Key endpoints:
 
-Configuration is managed through a cached `.env` file. The backend automatically loads settings from `backend/.env` on startup. The configuration includes:
+- `GET /api/v1/health` – service health metadata
+- `POST /api/v1/ingestion/sources` – register data sources
+- `POST /api/v1/ingestion/csv` – ingest local CSV directories into the analytics warehouse
+- `POST /api/v1/ingestion/klaviyo` – **Ingest Klaviyo campaign CSV** from file path (creates `campaigns` table)
+- `POST /api/v1/experiments/run` – **Run campaign strategy experiment** workflow (SQL query → image analysis → correlation)
+- `GET /api/v1/experiments/{experiment_run_id}` – **Get stored experiment results** (campaigns, images, correlations)
+- `GET /api/v1/experiments/` – **List all experiment runs**
+- `POST /api/v1/experiments/generate-campaigns` – **Generate new campaigns** based on analysis insights
+- `POST /api/v1/analytics/kpi` – **Real KPI computations** (revenue, AOV, ROAS, conversion rate, sessions)
+- `POST /api/v1/analytics/cohort` – **Real cohort analysis** grouping by dimensions
+- `POST /api/v1/analytics/prompt-sql` – **LLM-powered SQL generation** from natural language (OpenAI/Anthropic)
+- `POST /api/v1/intelligence/insights` – **LLM-generated narrative summaries** from analytics signals
+- `POST /api/v1/intelligence/campaigns` – **LLM-generated campaign recommendations** with expected uplift
+- `POST /api/v1/image-analysis/detect-features` – **Email feature detection** (CTAs, promotions, products, etc.) - Note: Currently disabled
+- `GET /api/v1/products/top` – **Top performing products** by sales
+- `GET /api/v1/products/inventory/alerts` – **Inventory alerts** for low stock items
 
-- Database connection settings
-- LLM provider configuration (OpenAI, Anthropic, or Ollama)
-- Vector search settings (ChromaDB)
-- API keys and service endpoints
-- Logging configuration
+### Frontend Setup
 
-A default `.env` file is created automatically on first run with sensible defaults. You can modify it to customize your setup.
+```bash
+cd /Users/kerrief/projects/marketing-agent/web
+npm install
+npm run dev
+```
 
-## Key Features
+Navigate to `http://localhost:3000` to explore the TripleWhale-inspired control center with:
 
-The platform provides:
+- Metric tiles for revenue, AOV, ROAS, and channel engagement
+- Prompt-to-SQL explorer backed by the ingested datasets
+- Cohort performance table and experiment planner backlog
+- **Campaign Strategy Experiment** - Analyze Klaviyo campaigns and images with SQL query editor
+- Campaign recommendation board and inventory alert feed
+- Protocol readiness status and upcoming integration callouts
 
-- **Metric tiles** for revenue, AOV, ROAS, and channel engagement
-- **Prompt-to-SQL explorer** backed by uploaded datasets
-- **Cohort performance table** and experiment planner backlog
-- **Campaign Strategy Experiment** - Analyze campaigns and images with SQL query editor
-- **Campaign recommendation board** and inventory alert feed
+**Campaign Strategy Analysis:**
+- SQL query editor for finding impactful campaigns (editable)
+- Natural language prompt → SQL generation
+- Image directory input for campaign visual analysis
 - **Email Feature Detection** - Automatically detects and catalogs key email features:
   - CTA buttons (text, position, color)
   - Promotions and discount badges
@@ -307,36 +257,9 @@ The platform provides:
   - Social proof (testimonials, reviews)
   - Urgency indicators (countdown timers, limited offers)
   - Email structure (header, footer, sections)
-
-## API Endpoints
-
-Key endpoints:
-
-- `GET /api/v1/health` – service health metadata
-- `POST /api/v1/ingestion/sources` – register data sources
-- `POST /api/v1/ingestion/csv` – ingest CSV files into the analytics warehouse
-- `POST /api/v1/ingestion/klaviyo` – Ingest Klaviyo campaign CSV
-- `POST /api/v1/experiments/run` – Run campaign strategy experiment workflow
-- `GET /api/v1/experiments/{experiment_run_id}` – Get stored experiment results
-- `GET /api/v1/experiments/` – List all experiment runs
-- `POST /api/v1/experiments/generate-campaigns` – Generate new campaigns based on analysis insights
-- `POST /api/v1/analytics/kpi` – Real KPI computations (revenue, AOV, ROAS, conversion rate, sessions)
-- `POST /api/v1/analytics/cohort` – Real cohort analysis grouping by dimensions
-- `POST /api/v1/analytics/prompt-sql` – LLM-powered SQL generation from natural language
-- `POST /api/v1/intelligence/insights` – LLM-generated narrative summaries from analytics signals
-- `POST /api/v1/intelligence/campaigns` – LLM-generated campaign recommendations with expected uplift
-- `POST /api/v1/image-analysis/detect-features` – Email feature detection (CTAs, promotions, products, etc.) - Note: Currently disabled
-- `GET /api/v1/products/top` – Top performing products by sales
-- `GET /api/v1/products/inventory/alerts` – Inventory alerts for low stock items
-
-## Testing
-
-```bash
-cd backend
-pytest
-```
-
-Frontend testing (to be added): `npm run lint` / `npm run test` once test harness is configured.
+- Results display: campaigns analyzed, image insights, visual correlations, feature catalog
+- Rerun capability with adjusted queries
+- **Top 5 campaigns only** - Automatically limits analysis to top 5 performing campaigns
 
 ## Development Roadmap
 
@@ -349,6 +272,63 @@ The `agent-spec.md` document captures the full roadmap. Immediate focus areas:
 5. **Integrations & Guardrails** – Klaviyo publishing, social platform connectors, asset QA, approval flows.
 6. **QA & DevOps** – Automated tests, CI/CD, monitoring, compliance and protocol conformance suites.
 
+## Testing
+
+```bash
+cd /Users/kerrief/projects/marketing-agent/backend
+pytest
+```
+
+Frontend testing (to be added): `npm run lint` / `npm run test` once test harness is configured.
+
+## Environment & Configuration
+
+Backend configuration lives in `backend/app/core/config.py` using `pydantic-settings`. Create a `backend/.env` file with:
+
+```env
+DATABASE_URL=sqlite:///../storage/marketing_agent.db
+INGESTION_DATA_ROOT=/Users/kerrief/projects/mappe/data
+ALLOWED_ORIGINS=http://localhost:3000
+
+# LLM Configuration (required for prompt-to-SQL and intelligence features)
+# Choose one or more providers:
+DEFAULT_LLM_PROVIDER=ollama  # Options: openai, anthropic, ollama
+USE_LLM_FOR_SQL=true
+
+# OpenAI Configuration (optional, fallback for image analysis)
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-4o-mini  # Use gpt-4o for image analysis (automatically used for vision tasks)
+
+# Anthropic Configuration (alternative provider)
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# Ollama Configuration (local LLM, no API key needed)
+# Make sure Ollama is installed and running: https://ollama.ai
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2  # or any model you have installed (llama3.2, mistral, codellama, etc.)
+OLLAMA_MAX_TABLES=6  # Maximum tables in prompt (reduce for smaller context windows)
+OLLAMA_MAX_COLUMNS=15  # Maximum columns per table in prompt
+
+# ChromaDB Configuration (for vector search and semantic dataset discovery)
+# ChromaDB is automatically installed with the backend dependencies
+# Vector database will be created at: backend/storage/vectors (relative to backend directory)
+ENABLE_VECTOR_SEARCH=false  # Set to true to enable vector search features
+VECTOR_DB_PATH=storage/vectors  # Path relative to backend directory
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text  # Embedding model for vector search (default: nomic-embed-text)
+# To use embeddings, ensure Ollama is running and pull the model:
+# ollama pull nomic-embed-text
+
+
+# Logging Configuration
+LOG_LEVEL=INFO  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+LOG_EXPERIMENTS_DEBUG=true  # Enable detailed DEBUG logging for experiments and workflows
+```
+
+Frontend environment variables via `web/.env.local`:
+```env
+NEXT_PUBLIC_API_BASE=http://localhost:8000/api
+```
+
 ## Recent Enhancements (per agent-spec.md)
 
 ✅ **LLM Integration**: Prompt-to-SQL now uses OpenAI/Anthropic/Ollama for intelligent SQL generation  
@@ -360,7 +340,83 @@ The `agent-spec.md` document captures the full roadmap. Immediate focus areas:
 ✅ **Image Analysis Pipeline**: Visual element detection in email campaigns using OpenAI Vision API  
 ✅ **Email Feature Detection**: Framework for detecting and cataloging key email features (CTAs, promotions, products, branding, social proof, urgency indicators) - Currently disabled  
 ✅ **Campaign Strategy Workflow**: End-to-end experiment system for analyzing top 5 campaigns, processing images, detecting features, and correlating visual elements with performance metrics  
-✅ **UI-Based Data Upload**: Simplified data ingestion through web interface
+
+## Vector Search Setup (ChromaDB)
+
+The system includes ChromaDB integration for vector search and semantic dataset discovery. This enables finding relevant datasets and insights based on semantic similarity rather than exact keyword matching.
+
+### Prerequisites
+
+1. **Install ChromaDB** (already included in dependencies):
+   ```bash
+   cd backend
+   pip install chromadb
+   ```
+
+2. **Set up Ollama Embedding Model** (for generating embeddings):
+   ```bash
+   # Make sure Ollama is running
+   ollama pull nomic-embed-text
+   ```
+
+### Configuration
+
+Enable vector search in your `backend/.env`:
+```env
+ENABLE_VECTOR_SEARCH=true
+VECTOR_DB_PATH=storage/vectors
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+```
+
+### Importing Data into Vector Database
+
+**Import Klaviyo Campaign Data:**
+
+After ingesting Klaviyo CSV data and running image analyses, import into ChromaDB:
+
+```bash
+cd /Users/kerrief/projects/marketing-agent/backend
+source .venv/bin/activate
+
+# Import campaigns with image analyses
+python scripts/load_klaviyo_to_vector_db.py \
+  --csv storage/email_campaigns.csv \
+  --image-folder image-analysis-extract \
+  --collection klaviyo_campaigns \
+  --overwrite
+```
+
+**Script Options:**
+- `--csv`: Path to email_campaigns.csv file (default: `backend/storage/email_campaigns.csv`)
+- `--image-folder`: Path to image-analysis-extract folder containing JSON files (default: `backend/image-analysis-extract`)
+- `--collection`: Vector database collection name (default: `klaviyo_campaigns`)
+- `--overwrite`: Overwrite existing campaigns
+- `--search`: Search for similar campaigns (e.g., `--search "bright colorful campaigns"`)
+- `--n-results`: Number of search results (default: 5)
+- `--verbose` or `-v`: Verbose output
+
+**Search Examples:**
+```bash
+# Find campaigns similar to a query
+python scripts/load_klaviyo_to_vector_db.py \
+  --search "high performing campaigns with dark themes" \
+  --n-results 10
+
+# Find campaigns with specific visual elements
+python scripts/load_klaviyo_to_vector_db.py \
+  --search "campaigns with product images and clear CTAs" \
+  --n-results 5
+```
+
+### Usage
+
+Once enabled and data is imported, the system will:
+- Automatically generate embeddings for ingested datasets
+- Store vectors in ChromaDB at `backend/storage/vectors`
+- Enable semantic search across datasets, campaigns, and insights
+- Support finding similar campaigns, products, or customer segments
+
+The vector database is automatically created on first use and persists between sessions.
 
 ## Next Steps
 
