@@ -61,7 +61,10 @@ try:
     CHROMADB_AVAILABLE = True
 except ImportError:
     CHROMADB_AVAILABLE = False
-    logger.warning("ChromaDB not available. Install with: pip install chromadb")
+    if not settings.use_atlas_vector_search:
+        logger.warning("ChromaDB not available. Install with: pip install chromadb")
+    else:
+        logger.debug("ChromaDB not installed; using MongoDB Atlas for vector search.")
 
 
 def _resolve_vector_db_path() -> Path:
@@ -104,7 +107,7 @@ def _coerce_metadata_text(value: Any, limit: int | None = None) -> str:
 
 def delete_collection_if_exists(collection_name: str) -> bool:
     """Delete a vector collection if it exists (Chroma or Atlas). Returns True when deleted."""
-    if getattr(settings, "use_atlas_vector_search", False) and _ATLAS_AVAILABLE:
+    if (getattr(settings, "use_atlas_vector_search", False) or not CHROMADB_AVAILABLE) and _ATLAS_AVAILABLE:
         try:
             db = get_database()
             db[collection_name].drop()
@@ -114,7 +117,7 @@ def delete_collection_if_exists(collection_name: str) -> bool:
             logger.info("Atlas collection '%s' drop skipped: %s", collection_name, exc)
             return False
     if not CHROMADB_AVAILABLE:
-        logger.warning("Skipping deletion of collection '%s' (ChromaDB not available).", collection_name)
+        logger.warning("Skipping deletion of collection '%s' (no vector backend available).", collection_name)
         return False
     client = _get_chroma_client()
     if client is None:
@@ -655,17 +658,21 @@ class VectorDBServiceAtlas:
 
 
 def get_vector_db_service(collection_name: str = "campaign_analyses") -> Union["VectorDBService", "VectorDBServiceAtlas"]:
-    """Return the configured vector DB implementation (Atlas or Chroma)."""
+    """Return the configured vector DB implementation (Atlas preferred, Chroma fallback)."""
     if getattr(settings, "use_atlas_vector_search", False) and _ATLAS_AVAILABLE:
         return VectorDBServiceAtlas(collection_name=collection_name)
+    # When ChromaDB is unavailable but Atlas is, fall back to Atlas automatically
     if not CHROMADB_AVAILABLE:
-        raise RuntimeError("ChromaDB not available and Atlas not enabled. Install chromadb or set USE_ATLAS_VECTOR_SEARCH=true and MONGODB_URI.")
+        if _ATLAS_AVAILABLE:
+            logger.info("ChromaDB unavailable; falling back to MongoDB Atlas for vector search.")
+            return VectorDBServiceAtlas(collection_name=collection_name)
+        raise RuntimeError("No vector backend available. Install chromadb or set USE_ATLAS_VECTOR_SEARCH=true with MONGODB_URI.")
     return VectorDBService(collection_name=collection_name)
 
 
 def list_all_collections() -> List[str]:
     """List available vector collection names (Atlas or Chroma)."""
-    if getattr(settings, "use_atlas_vector_search", False) and _ATLAS_AVAILABLE:
+    if (getattr(settings, "use_atlas_vector_search", False) or not CHROMADB_AVAILABLE) and _ATLAS_AVAILABLE:
         try:
             return get_database().list_collection_names()
         except Exception as exc:
@@ -690,8 +697,8 @@ def list_all_collections() -> List[str]:
 
 
 def _get_collection(collection_name: str):
-    """Get Chroma collection (None when using Atlas)."""
-    if getattr(settings, "use_atlas_vector_search", False) and _ATLAS_AVAILABLE:
+    """Get collection from Atlas or Chroma."""
+    if (getattr(settings, "use_atlas_vector_search", False) or not CHROMADB_AVAILABLE) and _ATLAS_AVAILABLE:
         return get_database()[collection_name]
     client = _get_chroma_client()
     if client is None:
@@ -704,7 +711,7 @@ def _get_collection(collection_name: str):
 
 def get_all_products(collection_name: str = DEFAULT_PRODUCT_COLLECTION_NAME) -> List[Dict[str, Any]]:
     """Return product metadata rows from a product vector collection (Chroma or Atlas)."""
-    if getattr(settings, "use_atlas_vector_search", False) and _ATLAS_AVAILABLE:
+    if (getattr(settings, "use_atlas_vector_search", False) or not CHROMADB_AVAILABLE) and _ATLAS_AVAILABLE:
         try:
             coll = get_database()[collection_name]
             products = []

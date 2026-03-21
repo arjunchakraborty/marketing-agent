@@ -1,10 +1,13 @@
 """Centralized application configuration and settings management."""
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional, Sequence
 
 from pydantic import AliasChoices, Field, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_ON_VERCEL = bool(os.environ.get("VERCEL"))
 
 # Load .env from backend root (backend/.env) or app/core; missing file is ignored (e.g. on Vercel)
 _THIS_DIR = Path(__file__).resolve().parent
@@ -35,7 +38,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("VERCEL_MONGODB_URI", "MONGODB_URI"),
     )
     mongodb_database: str = Field(default="marketing_agent", description="MongoDB database name")
-    use_mongodb: bool = Field(default=False, description="Use MongoDB for document storage instead of PostgreSQL/SQLite")
+    use_mongodb: bool = Field(default=_ON_VERCEL, description="Use MongoDB for document storage (auto-enabled on Vercel)")
 
     # Env read as string (comma-separated); parsed to list via computed field to avoid JSON parse errors
     allowed_origins_env: str = Field(
@@ -77,10 +80,10 @@ class Settings(BaseSettings):
     default_llm_provider: str = Field(default="ollama", description="Default LLM provider: openai, anthropic, or ollama")
     use_llm_for_sql: bool = Field(default=True, description="Use LLM for prompt-to-SQL generation")
 
-    # Vector Search Configuration (MongoDB Atlas Vector Search replaces ChromaDB)
+    # Vector Search Configuration (MongoDB Atlas Vector Search replaces ChromaDB on Vercel)
     enable_vector_search: bool = Field(default=True, description="Enable vector search for semantic discovery")
     vector_db_path: str = Field(default="storage/vectors", description="Path for ChromaDB fallback (when not using Atlas)")
-    use_atlas_vector_search: bool = Field(default=False, description="Use MongoDB Atlas Vector Search instead of ChromaDB")
+    use_atlas_vector_search: bool = Field(default=_ON_VERCEL, description="Use MongoDB Atlas Vector Search instead of ChromaDB (auto-enabled on Vercel)")
     mongodb_vector_index_name: str = Field(default="vector_index", description="Atlas Vector Search index name (create in Atlas UI with path 'embedding')")
 
     # ComfyUI Configuration
